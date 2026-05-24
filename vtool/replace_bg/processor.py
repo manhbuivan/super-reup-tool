@@ -1,0 +1,223 @@
+"""
+Core processor for replacing video backgrounds.
+"""
+
+import os
+import sys
+import random
+import subprocess
+import time
+from pathlib import Path
+from concurrent.futures import ProcessPoolExecutor, as_completed
+
+from vtool.core.ffmpeg import (
+    VIDEO_EXTENSIONS, IMAGE_EXTENSIONS,
+    get_video_dimensions, list_media_files
+)
+from vtool.replace_bg.config import ReplaceBgConfig
+
+
+def _detect_or_fallback(video_path: str, config: ReplaceBgConfig) -> float:
+    """Detect text ratio hoặc dùng fallback."""
+    if not config.auto_detect:
+        return config.text_ratio
+
+    try:
+        from vtool.core.detector import detect_text_region
+        result = detect_text_region(video_path, config.detect_sample_times)
+
+        if result["confidence"] >= 0.3:
+            return result["text_ratio"]
+        else:
+            return config.text_ratio
+    except ImportError:
+        # OpenCV chưa cài → dùng fallback
+        return config.text_ratio
+    except Exception:
+        return config.text_ratio
+
+
+def process_single_video(args: tuple) -> dict:
+    """
+    Xử lý 1 video: thay background, giữ text bar.
+
+    Logic FFmpeg:
+    1. Crop phần text bar (phần dưới) từ video gốc
+    2. Scale/crop background cho vừa phần trên
+    3. vstack 2 phần lại
+    4. Giữ nguyên audio
+    """
+    video_path, background_path, output_path, config = args
+
+    start_time = time.time()
+    result = {
+        "input": video_path,
+        "output": output_path,
+        "status": "success",
+        "error": None,
+        "text_ratio": None,
+    }
+
+    try:
+        # Lấy thông tin video gốc
+        width, height, duration, fps = get_video_dimensions(video_path)
+
+        # Detect text region
+        text_ratio = _detect_or_fallback(video_path, config)
+        result["text_ratio"] = text_ratio
+
+        # Tính toán vùng
+        text_height = int(height * text_ratio)
+        bg_height = height - text_height
+
+        # Xác định background type
+        bg_ext = Path(background_path).suffix.lower()
+        is_video_bg = bg_ext in VIDEO_EXTENSIONS
+
+        # Chọn codec
+        if config.use_gpu:
+            import platform
+            system = platform.system()
+            if system == "Darwin":
+                vcodec = "h264_videotoolbox"
+                extra_params = ["-q:v", "65"]
+            elif system == "Windows":
+                vcodec = "h264_nvenc"
+                extra_params = ["-preset", "p4", "-cq", str(config.crf)]
+            else:
+                # Linux: thử nvenc, fallback về libx264
+                vcodec = "h264_nvenc"
+                extra_params = ["-preset", "p4", "-cq", str(config.crf)]
+        else:
+            vcodec = config.video_codec
+            extra_params = ["-preset", config.preset, "-crf", str(config.crf)]
+
+        # Filter complex: scale bg → crop text bar → stack
+        filter_complex = (
+            f"[1:v]scale={width}:{bg_height}:force_original_aspect_ratio=increase,"
+            f"crop={width}:{bg_height}[bg];"
+            f"[0:v]crop={width}:{text_height}:0:{bg_height}[text];"
+            f"[bg][text]vstack=inputs=2[out]"
+        )
+
+        # Build FFmpeg command
+        if is_video_bg:
+            input_bg_args = ["-stream_loop", "-1", "-i", background_path]
+        else:
+            input_bg_args = ["-loop", "1", "-i", background_path]
+
+        cmd = [
+            "ffmpeg", "-y",
+            "-i", video_path,
+            *input_bg_args,
+            "-filter_complex", filter_complex,
+            "-map", "[out]", "-map", "0:a?",
+            "-c:v", vcodec,
+            *extra_params,
+            "-c:a", config.audio_codec,
+            "-t", str(duration),
+            "-shortest",
+            output_path
+        ]
+
+        # Chạy FFmpeg
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+
+        if proc.returncode != 0:
+            result["status"] = "error"
+            result["error"] = proc.stderr[-500:]
+
+    except Exception as e:
+        result["status"] = "error"
+        result["error"] = str(e)
+
+    result["time"] = round(time.time() - start_time, 1)
+    return result
+
+
+def batch_process(config: ReplaceBgConfig):
+    """Xử lý hàng loạt video song song."""
+
+    # Tạo output dir
+    os.makedirs(config.output_dir, exist_ok=True)
+
+    # Lấy danh sách video input
+    input_videos = list_media_files(config.input_dir, VIDEO_EXTENSIONS)
+    if not input_videos:
+        print(f"❌ Không tìm thấy video nào trong '{config.input_dir}/'")
+        sys.exit(1)
+
+    # Lấy danh sách backgrounds
+    backgrounds = list_media_files(config.background_dir, VIDEO_EXTENSIONS | IMAGE_EXTENSIONS)
+    if not backgrounds:
+        print(f"❌ Không tìm thấy background nào trong '{config.background_dir}/'")
+        sys.exit(1)
+
+    # Header
+    print("=" * 60)
+    print("🎬 REPLACE BACKGROUND - Batch Processing")
+    print("=" * 60)
+    print(f"📂 Input videos:  {len(input_videos)} files")
+    print(f"🖼️  Backgrounds:   {len(backgrounds)} files")
+    print(f"⚙️  Workers:       {config.max_workers} parallel")
+    print(f"🔍 Auto-detect:   {'ON' if config.auto_detect else 'OFF'}")
+    if not config.auto_detect:
+        print(f"📐 Text ratio:    {config.text_ratio:.0%} (fixed)")
+    print(f"🎥 Codec:         {config.video_codec} | Preset: {config.preset} | CRF: {config.crf}")
+    print(f"🚀 GPU:           {'ON' if config.use_gpu else 'OFF'}")
+    print("=" * 60)
+
+    # Auto-detect trước cho video đầu tiên để hiển thị
+    if config.auto_detect:
+        try:
+            from vtool.core.detector import detect_text_region
+            sample_result = detect_text_region(input_videos[0], config.detect_sample_times)
+            print(f"🔍 Sample detect: text_ratio={sample_result['text_ratio']:.2%}, "
+                  f"confidence={sample_result['confidence']:.0%}, "
+                  f"method={sample_result['method']}")
+        except Exception as e:
+            print(f"⚠️  Auto-detect failed, using fallback {config.text_ratio:.0%}: {e}")
+        print("=" * 60)
+
+    # Chuẩn bị tasks
+    tasks = []
+    for video_path in input_videos:
+        bg = random.choice(backgrounds)
+        output_name = f"new_{Path(video_path).stem}.{config.output_format}"
+        output_path = os.path.join(config.output_dir, output_name)
+        tasks.append((video_path, bg, output_path, config))
+
+    # Xử lý song song
+    total = len(tasks)
+    success = 0
+    errors = 0
+    total_time_start = time.time()
+
+    print(f"\n🚀 Bắt đầu xử lý {total} video...\n")
+
+    with ProcessPoolExecutor(max_workers=config.max_workers) as executor:
+        futures = {executor.submit(process_single_video, task): task for task in tasks}
+
+        for i, future in enumerate(as_completed(futures), 1):
+            result = future.result()
+            status_icon = "✅" if result["status"] == "success" else "❌"
+            filename = Path(result["input"]).name
+            ratio_info = f" [text:{result['text_ratio']:.0%}]" if result["text_ratio"] else ""
+
+            print(f"  [{i}/{total}] {status_icon} {filename}{ratio_info} → {result['time']}s")
+
+            if result["status"] == "success":
+                success += 1
+            else:
+                errors += 1
+                print(f"         Error: {result['error'][:100]}")
+
+    # Summary
+    total_time = round(time.time() - total_time_start, 1)
+    print("\n" + "=" * 60)
+    print(f"📊 KẾT QUẢ:")
+    print(f"   ✅ Thành công: {success}/{total}")
+    print(f"   ❌ Lỗi:       {errors}/{total}")
+    print(f"   ⏱️  Tổng thời gian: {total_time}s")
+    print(f"   📁 Output: {config.output_dir}/")
+    print("=" * 60)
