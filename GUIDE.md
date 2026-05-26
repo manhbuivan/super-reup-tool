@@ -111,6 +111,40 @@ Kết quả: folder `input_videos/` chứa video + .json + .jpg
 Tự copy video nền hoặc ảnh nền vào folder `backgrounds/`.
 Hỗ trợ: .mp4, .mov, .avi, .mkv, .webm, .jpg, .png, .webp
 
+**Tải video nền từ Twitch:**
+
+```powershell
+# Tải 1 VOD làm background (không cắt)
+python run.py download-twitch --url "https://www.twitch.tv/videos/123456789" --output backgrounds --split 999
+
+# Hoặc dùng yt-dlp trực tiếp
+yt-dlp -o "backgrounds/bg_twitch.mp4" "https://www.twitch.tv/videos/123456789"
+```
+
+**Tải video từ Twitch làm input (tự cắt mỗi đoạn 1 tiếng):**
+
+```powershell
+# Lấy danh sách VOD từ channel
+python run.py get-twitch-urls --channel "https://twitch.tv/username" --limit 50
+
+# Tải + tự cắt mỗi đoạn 1 tiếng
+python run.py download-twitch --list twitch_urls.txt
+
+# Tải 1 VOD, cắt mỗi 30 phút
+python run.py download-twitch --url "https://twitch.tv/videos/123456" --split 0.5
+
+# Tải 1 VOD, cắt mỗi 2 tiếng
+python run.py download-twitch --url "https://twitch.tv/videos/123456" --split 2.0
+```
+
+Ví dụ: VOD 5 tiếng → tự cắt thành 5 file:
+```
+Stream Title_part01.mp4 + .json + .jpg
+Stream Title_part02.mp4 + .json + .jpg
+...
+Stream Title_part05.mp4 + .json + .jpg
+```
+
 ---
 
 ### Bước 4: Thay nền video
@@ -187,8 +221,11 @@ python run.py status
 | Lệnh | Mô tả |
 |-------|--------|
 | `python run.py list-profiles` | Xem danh sách GPM profiles |
-| `python run.py get-urls --channel URL` | Lấy URL video từ channel |
-| `python run.py download-yt --list urls.txt` | Tải video + metadata + thumb |
+| `python run.py get-urls --channel URL` | Lấy URL video từ channel YouTube |
+| `python run.py download-yt --list urls.txt` | Tải video YouTube + metadata + thumb |
+| `python run.py get-twitch-urls --channel URL` | Lấy URL VOD từ channel Twitch |
+| `python run.py download-twitch --list twitch_urls.txt` | Tải video Twitch + cắt 1h |
+| `python run.py download-twitch --url URL --output backgrounds --split 999` | Tải video Twitch làm background |
 | `python run.py replace-bg` | Thay nền video |
 | `python run.py distribute --profiles "K1,K2,..."` | Chia video theo ngày/kênh |
 | `python run.py upload-gpm` | Upload hôm nay |
