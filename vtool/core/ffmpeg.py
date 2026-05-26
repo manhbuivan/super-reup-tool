@@ -15,12 +15,17 @@ def get_video_info(video_path: str) -> dict:
         "ffprobe", "-v", "quiet",
         "-print_format", "json",
         "-show_format", "-show_streams",
-        video_path
+        str(video_path)
     ]
     result = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace")
     if result.returncode != 0:
         raise RuntimeError(f"ffprobe failed for {video_path}: {result.stderr}")
-    return json.loads(result.stdout)
+    
+    # Đảm bảo stdout là valid JSON
+    stdout = result.stdout.strip()
+    if not stdout:
+        raise RuntimeError(f"ffprobe returned empty output for {video_path}")
+    return json.loads(stdout)
 
 
 def get_video_dimensions(video_path: str) -> tuple:
