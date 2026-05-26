@@ -121,7 +121,7 @@ def process_single_video(args: tuple) -> dict:
         ]
 
         # Chạy FFmpeg
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=600, encoding="utf-8", errors="replace")
 
         if proc.returncode != 0:
             result["status"] = "error"

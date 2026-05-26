@@ -17,7 +17,7 @@ def get_video_info(video_path: str) -> dict:
         "-show_format", "-show_streams",
         video_path
     ]
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    result = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace")
     if result.returncode != 0:
         raise RuntimeError(f"ffprobe failed for {video_path}: {result.stderr}")
     return json.loads(result.stdout)
@@ -49,7 +49,7 @@ def extract_frame(video_path: str, time_sec: float = 1.0) -> str:
         "-q:v", "2",
         output_path
     ]
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    result = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace")
     if result.returncode != 0:
         raise RuntimeError(f"Failed to extract frame: {result.stderr}")
     return output_path
