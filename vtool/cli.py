@@ -107,10 +107,16 @@ def cmd_upload_gpm(args):
             if len(parts) == 2:
                 profiles_map[parts[0].strip()] = parts[1].strip()
 
+    # Parse publish times
+    publish_times = None
+    if args.times:
+        publish_times = [t.strip() for t in args.times.split(",")]
+
     upload_daily(
         schedule_dir=args.schedule,
         profiles_map=profiles_map,
         visibility=args.visibility,
+        publish_times=publish_times,
         gpm_port=args.port,
     )
 
@@ -301,9 +307,12 @@ def main():
     p_upload.add_argument("--schedule", default="schedules", help="Thư mục schedule")
     p_upload.add_argument("--profiles-map", default=None,
                           help="Map kênh:GPM_ID (vd: 'K1:abc-123,K2:def-456')")
-    p_upload.add_argument("--visibility", default="public",
-                          choices=["public", "unlisted", "private"],
-                          help="Visibility (default: public)")
+    p_upload.add_argument("--visibility", default="schedule",
+                          choices=["public", "unlisted", "private", "schedule"],
+                          help="Visibility (default: schedule = hẹn giờ publish)")
+    p_upload.add_argument("--times", default="08:00,10:00,12:00,14:00,16:00,18:00,20:00",
+                          help="Giờ publish cho từng video, cách nhau bằng dấu phẩy "
+                               "(default: '08:00,10:00,12:00,14:00,16:00,18:00,20:00')")
     p_upload.add_argument("--port", type=int, default=19995, help="GPM API port (default: 19995)")
     p_upload.set_defaults(func=cmd_upload_gpm)
 
