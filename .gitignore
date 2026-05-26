@@ -1,0 +1,15 @@
+# Video/media files
+input_videos/
+output_videos/
+backgrounds/
+schedules/
+
+# Generated files
+urls.txt
+twitch_urls.txt
+upload_log.txt
+
+# System
+.DS_Store
+__pycache__/
+*.pyc
