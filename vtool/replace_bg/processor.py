@@ -183,9 +183,20 @@ def batch_process(config: ReplaceBgConfig):
     tasks = []
     for video_path in input_videos:
         bg = random.choice(backgrounds)
-        output_name = f"new_{Path(video_path).stem}.{config.output_format}"
+        stem = Path(video_path).stem
+        # Bỏ prefix "new_" để giữ tên gốc
+        output_name = f"{stem}.{config.output_format}"
         output_path = os.path.join(config.output_dir, output_name)
         tasks.append((video_path, bg, output_path, config))
+
+        # Copy metadata (.json, .jpg) sang output dir
+        input_dir = str(Path(video_path).parent)
+        for ext in [".json", ".jpg"]:
+            meta_src = os.path.join(input_dir, f"{stem}{ext}")
+            if os.path.exists(meta_src):
+                import shutil
+                meta_dst = os.path.join(config.output_dir, f"{stem}{ext}")
+                shutil.copy2(meta_src, meta_dst)
 
     # Xử lý song song
     total = len(tasks)
