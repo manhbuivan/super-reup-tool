@@ -129,6 +129,7 @@ def process_single_video(args: tuple) -> dict:
             "-c:v", vcodec,
             *extra_params,
             "-c:a", config.audio_codec,
+            "-b:a", "128k",
             "-t", str(duration),
             "-shortest",
             temp_output
@@ -139,7 +140,14 @@ def process_single_video(args: tuple) -> dict:
 
         if proc.returncode != 0:
             result["status"] = "error"
-            result["error"] = proc.stderr[-500:]
+            # Lấy dòng lỗi thực sự (bỏ qua metadata/stream info)
+            stderr_lines = proc.stderr.split("\n")
+            error_lines = [l for l in stderr_lines if any(k in l.lower() for k in ["error", "invalid", "no such", "does not", "failed", "cannot", "not found"])]
+            if error_lines:
+                result["error"] = "\n".join(error_lines[-5:])
+            else:
+                # Lấy 5 dòng cuối
+                result["error"] = "\n".join(stderr_lines[-5:])
         else:
             # Copy output về đúng vị trí
             os.makedirs(os.path.dirname(output_path) if os.path.dirname(output_path) else ".", exist_ok=True)
