@@ -111,39 +111,38 @@ Kết quả: folder `input_videos/` chứa video + .json + .jpg
 Tự copy video nền hoặc ảnh nền vào folder `backgrounds/`.
 Hỗ trợ: .mp4, .mov, .avi, .mkv, .webm, .jpg, .png, .webp
 
-**Tải video nền từ Twitch:**
+**Tải video nền từ Twitch (tự cắt mỗi đoạn 1 tiếng):**
 
 ```powershell
-# Tải 1 VOD làm background (không cắt)
-python run.py download-twitch --url "https://www.twitch.tv/videos/123456789" --output backgrounds --split 999
-
-# Hoặc dùng yt-dlp trực tiếp
-yt-dlp -o "backgrounds/bg_twitch.mp4" "https://www.twitch.tv/videos/123456789"
-```
-
-**Tải video từ Twitch làm input (tự cắt mỗi đoạn 1 tiếng):**
-
-```powershell
-# Lấy danh sách VOD từ channel
+# Lấy danh sách VOD từ channel Twitch
 python run.py get-twitch-urls --channel "https://twitch.tv/username" --limit 50
 
-# Tải + tự cắt mỗi đoạn 1 tiếng
+# Tải + tự cắt mỗi đoạn 1 tiếng → lưu vào backgrounds/
 python run.py download-twitch --list twitch_urls.txt
 
-# Tải 1 VOD, cắt mỗi 30 phút
-python run.py download-twitch --url "https://twitch.tv/videos/123456" --split 0.5
+# Tải 1 VOD cụ thể
+python run.py download-twitch --url "https://www.twitch.tv/videos/123456789"
 
-# Tải 1 VOD, cắt mỗi 2 tiếng
-python run.py download-twitch --url "https://twitch.tv/videos/123456" --split 2.0
+# Cắt mỗi đoạn 30 phút
+python run.py download-twitch --url "..." --split 0.5
+
+# Cắt mỗi đoạn 2 tiếng
+python run.py download-twitch --url "..." --split 2.0
+
+# Không cắt (giữ nguyên video dài)
+python run.py download-twitch --url "..." --split 999
 ```
 
-Ví dụ: VOD 5 tiếng → tự cắt thành 5 file:
+Ví dụ: VOD 5 tiếng → tự cắt thành 5 file trong `backgrounds/`:
 ```
-Stream Title_part01.mp4 + .json + .jpg
-Stream Title_part02.mp4 + .json + .jpg
-...
-Stream Title_part05.mp4 + .json + .jpg
+Stream Title_part01.mp4 (1h)
+Stream Title_part02.mp4 (1h)
+Stream Title_part03.mp4 (1h)
+Stream Title_part04.mp4 (1h)
+Stream Title_part05.mp4 (1h)
 ```
+
+Lưu ý: Video Twitch dài có thể tải lâu (tuỳ mạng), tool sẽ đợi cho đến khi xong.
 
 ---
 
