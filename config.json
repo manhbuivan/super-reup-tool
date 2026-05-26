@@ -2,26 +2,30 @@
   "profiles": {
     "K1": {
       "gpm_id": "ca7ad9fc-437e-4537-a992-1993e9d1b10a",
-      "name": "Kênh 1"
+      "name": "Kênh 1",
+      "publish_times": ["07:00", "09:00", "11:00", "13:00", "15:00", "17:00", "19:00"]
     },
     "K2": {
       "gpm_id": "YOUR_GPM_PROFILE_ID_HERE",
-      "name": "Kênh 2"
+      "name": "Kênh 2",
+      "publish_times": ["08:00", "10:00", "12:00", "14:00", "16:00", "18:00", "20:00"]
     },
     "K3": {
       "gpm_id": "YOUR_GPM_PROFILE_ID_HERE",
-      "name": "Kênh 3"
+      "name": "Kênh 3",
+      "publish_times": ["06:00", "08:30", "11:00", "13:30", "16:00", "18:30", "21:00"]
     },
     "K4": {
       "gpm_id": "YOUR_GPM_PROFILE_ID_HERE",
-      "name": "Kênh 4"
+      "name": "Kênh 4",
+      "publish_times": ["07:30", "09:30", "11:30", "14:00", "16:30", "19:00", "21:00"]
     },
     "K5": {
       "gpm_id": "YOUR_GPM_PROFILE_ID_HERE",
-      "name": "Kênh 5"
+      "name": "Kênh 5",
+      "publish_times": ["08:00", "10:30", "12:30", "14:30", "17:00", "19:30", "21:30"]
     }
   },
-  "publish_times": ["08:00", "10:00", "12:00", "14:00", "16:00", "18:00", "20:00"],
   "per_day": 7,
   "gap_days": 10,
   "gpm_port": 19995

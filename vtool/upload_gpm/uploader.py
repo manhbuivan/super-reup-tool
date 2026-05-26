@@ -165,6 +165,12 @@ def upload_daily(
             print(f"\n  ❌ {profile_name}: Chưa set GPM ID trong config.json")
             continue
         
+        # Lấy publish_times riêng cho profile này
+        profile_times = publish_times  # default
+        profile_config = config.get("profiles", {}).get(profile_name, {})
+        if isinstance(profile_config, dict) and "publish_times" in profile_config:
+            profile_times = profile_config["publish_times"]
+        
         # Kiểm tra có video nào cần upload không
         videos_to_upload = []
         for date_str in upload_dates:
@@ -177,6 +183,7 @@ def upload_daily(
             continue
         
         print(f"\n  👤 {profile_name}: {len(videos_to_upload)} video cần upload")
+        print(f"     ⏰ Giờ: {', '.join(profile_times)}")
         
         # Mở profile GPM
         driver = _open_gpm_profile(gpm_id)
@@ -196,9 +203,9 @@ def upload_daily(
                     total_errors += 1
                     continue
                 
-                # Xác định giờ publish
-                video_idx_in_day = idx % len(publish_times)
-                publish_time = publish_times[video_idx_in_day]
+                # Xác định giờ publish (theo index trong ngày)
+                video_idx_in_day = idx % len(profile_times)
+                publish_time = profile_times[video_idx_in_day]
                 
                 success = _upload_single_video(
                     driver, video_path, day_folder, visibility, publish_time, date_str
