@@ -143,7 +143,7 @@ def _download_and_split(url: str, output_dir: str, quality: str, split_seconds: 
             url
         ]
         
-        dl_result = subprocess.run(dl_cmd, capture_output=True, text=True, timeout=7200)
+        dl_result = subprocess.run(dl_cmd, capture_output=True, text=True, timeout=None)
         
         if dl_result.returncode != 0:
             result["status"] = "error"

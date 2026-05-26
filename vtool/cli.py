@@ -331,11 +331,11 @@ def main():
     # === Command: download-twitch ===
     p_twitch = subparsers.add_parser(
         "download-twitch",
-        help="Tải video Twitch + cắt thành từng đoạn 1 tiếng"
+        help="Tải video Twitch + cắt thành từng đoạn 1 tiếng → backgrounds/"
     )
     p_twitch.add_argument("--url", help="URL 1 VOD/clip")
     p_twitch.add_argument("--list", help="File chứa danh sách URL")
-    p_twitch.add_argument("--output", default="input_videos", help="Thư mục output")
+    p_twitch.add_argument("--output", default="backgrounds", help="Thư mục output (default: backgrounds)")
     p_twitch.add_argument("--quality", default="best", choices=["best", "1080", "720"],
                           help="Chất lượng video (default: best)")
     p_twitch.add_argument("--split", type=float, default=1.0,
