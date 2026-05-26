@@ -78,6 +78,42 @@ def cmd_download_yt(args):
     download_videos(urls, output_dir=args.output, quality=args.quality)
 
 
+def cmd_get_twitch_urls(args):
+    """Command: Lấy URL VOD từ channel Twitch."""
+    from vtool.download_twitch import get_twitch_vods
+
+    get_twitch_vods(
+        channel_url=args.channel,
+        limit=args.limit,
+        output_file=args.output,
+    )
+
+
+def cmd_download_twitch(args):
+    """Command: Tải video từ Twitch + cắt thành từng đoạn."""
+    from vtool.download_twitch import download_twitch_videos
+
+    # Đọc URLs
+    if args.url:
+        urls = [args.url]
+    elif args.list:
+        with open(args.list, "r", encoding="utf-8") as f:
+            urls = [line.strip() for line in f if line.strip()]
+    else:
+        print("❌ Cần --url hoặc --list")
+        sys.exit(1)
+
+    if args.limit:
+        urls = urls[:args.limit]
+
+    download_twitch_videos(
+        urls,
+        output_dir=args.output,
+        quality=args.quality,
+        split_hours=args.split,
+    )
+
+
 def cmd_distribute(args):
     """Command: Phân phối video vào folder theo ngày."""
     from vtool.distribute import distribute_videos
@@ -225,14 +261,16 @@ def cmd_info(args):
     print(f"{__app_name__} v{__version__}")
     print()
     print("Available commands:")
-    print("  get-urls       Lấy danh sách URL video từ channel YouTube")
-    print("  download-yt    Tải video + metadata + thumbnail từ YouTube")
-    print("  replace-bg     Thay nền video hàng loạt, giữ text transcript")
-    print("  distribute     Chia video vào folder theo ngày cho từng kênh")
-    print("  upload-gpm     Upload video lên YouTube qua GPM-Login (hẹn giờ)")
-    print("  list-profiles  Liệt kê GPM profiles (lấy ID cho config.json)")
-    print("  status         Xem tiến độ upload các kênh")
-    print("  detect         Auto-detect vùng text trong video")
+    print("  get-urls         Lấy danh sách URL video từ channel YouTube")
+    print("  download-yt      Tải video + metadata + thumbnail từ YouTube")
+    print("  get-twitch-urls  Lấy danh sách VOD URL từ channel Twitch")
+    print("  download-twitch  Tải video Twitch + cắt thành từng đoạn 1 tiếng")
+    print("  replace-bg       Thay nền video hàng loạt, giữ text transcript")
+    print("  distribute       Chia video vào folder theo ngày cho từng kênh")
+    print("  upload-gpm       Upload video lên YouTube qua GPM-Login (hẹn giờ)")
+    print("  list-profiles    Liệt kê GPM profiles (lấy ID cho config.json)")
+    print("  status           Xem tiến độ upload các kênh")
+    print("  detect           Auto-detect vùng text trong video")
     print()
     print("Flow:")
     print("  get-urls → download-yt → replace-bg → distribute → upload-gpm")
@@ -279,6 +317,31 @@ def main():
                             help="Chất lượng video (default: best)")
     p_download.add_argument("--limit", type=int, default=None, help="Giới hạn số video tải")
     p_download.set_defaults(func=cmd_download_yt)
+
+    # === Command: get-twitch-urls ===
+    p_twitch_urls = subparsers.add_parser(
+        "get-twitch-urls",
+        help="Lấy danh sách VOD URL từ channel Twitch"
+    )
+    p_twitch_urls.add_argument("--channel", required=True, help="URL channel Twitch")
+    p_twitch_urls.add_argument("--limit", type=int, default=None, help="Giới hạn số VOD")
+    p_twitch_urls.add_argument("--output", default="twitch_urls.txt", help="File output")
+    p_twitch_urls.set_defaults(func=cmd_get_twitch_urls)
+
+    # === Command: download-twitch ===
+    p_twitch = subparsers.add_parser(
+        "download-twitch",
+        help="Tải video Twitch + cắt thành từng đoạn 1 tiếng"
+    )
+    p_twitch.add_argument("--url", help="URL 1 VOD/clip")
+    p_twitch.add_argument("--list", help="File chứa danh sách URL")
+    p_twitch.add_argument("--output", default="input_videos", help="Thư mục output")
+    p_twitch.add_argument("--quality", default="best", choices=["best", "1080", "720"],
+                          help="Chất lượng video (default: best)")
+    p_twitch.add_argument("--split", type=float, default=1.0,
+                          help="Cắt mỗi đoạn bao nhiêu giờ (default: 1.0)")
+    p_twitch.add_argument("--limit", type=int, default=None, help="Giới hạn số video tải")
+    p_twitch.set_defaults(func=cmd_download_twitch)
 
     # === Command: replace-bg ===
     p_replace = subparsers.add_parser(
