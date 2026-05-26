@@ -114,11 +114,19 @@ def cmd_upload_gpm(args):
 
     upload_daily(
         schedule_dir=args.schedule,
-        profiles_map=profiles_map,
+        config_path=args.config,
+        days=args.days,
         visibility=args.visibility,
         publish_times=publish_times,
-        gpm_port=args.port,
+        profiles_map=profiles_map,
+        gpm_port=args.port if args.port else None,
     )
+
+
+def cmd_list_profiles(args):
+    """Command: Liệt kê GPM profiles."""
+    from vtool.upload_gpm import list_gpm_profiles
+    list_gpm_profiles(gpm_port=args.port)
 
 
 def cmd_status(args):
@@ -217,16 +225,27 @@ def cmd_info(args):
     print(f"{__app_name__} v{__version__}")
     print()
     print("Available commands:")
-    print("  get-urls     Lấy danh sách URL video từ channel YouTube")
-    print("  download-yt  Tải video + metadata + thumbnail từ YouTube")
-    print("  replace-bg   Thay nền video hàng loạt, giữ text transcript")
-    print("  distribute   Chia video vào folder theo ngày cho từng kênh")
-    print("  upload-gpm   Upload video lên YouTube qua GPM-Login")
-    print("  status       Xem tiến độ upload các kênh")
-    print("  detect       Auto-detect vùng text trong video")
+    print("  get-urls       Lấy danh sách URL video từ channel YouTube")
+    print("  download-yt    Tải video + metadata + thumbnail từ YouTube")
+    print("  replace-bg     Thay nền video hàng loạt, giữ text transcript")
+    print("  distribute     Chia video vào folder theo ngày cho từng kênh")
+    print("  upload-gpm     Upload video lên YouTube qua GPM-Login (hẹn giờ)")
+    print("  list-profiles  Liệt kê GPM profiles (lấy ID cho config.json)")
+    print("  status         Xem tiến độ upload các kênh")
+    print("  detect         Auto-detect vùng text trong video")
     print()
     print("Flow:")
     print("  get-urls → download-yt → replace-bg → distribute → upload-gpm")
+    print()
+    print("Quick start:")
+    print("  1. python run.py list-profiles          (lấy GPM ID)")
+    print("  2. Sửa config.json (set GPM ID + giờ)")
+    print("  3. python run.py get-urls --channel URL")
+    print("  4. python run.py download-yt --list urls.txt")
+    print("  5. python run.py replace-bg")
+    print("  6. python run.py distribute --profiles 'K1,K2,K3,K4,K5'")
+    print("  7. python run.py upload-gpm             (upload hôm nay)")
+    print("  7. python run.py upload-gpm --days 5    (upload trước 5 ngày)")
     print()
     print("Run 'python -m vtool <command> --help' for details.")
 
@@ -305,16 +324,27 @@ def main():
         help="Upload video lên YouTube qua GPM-Login"
     )
     p_upload.add_argument("--schedule", default="schedules", help="Thư mục schedule")
+    p_upload.add_argument("--config", default="config.json", help="File config (default: config.json)")
+    p_upload.add_argument("--days", type=int, default=1,
+                          help="Số ngày upload (1=hôm nay, 5=hôm nay + 4 ngày tới)")
     p_upload.add_argument("--profiles-map", default=None,
-                          help="Map kênh:GPM_ID (vd: 'K1:abc-123,K2:def-456')")
-    p_upload.add_argument("--visibility", default="schedule",
+                          help="Map kênh:GPM_ID (override config.json)")
+    p_upload.add_argument("--visibility", default=None,
                           choices=["public", "unlisted", "private", "schedule"],
-                          help="Visibility (default: schedule = hẹn giờ publish)")
-    p_upload.add_argument("--times", default="08:00,10:00,12:00,14:00,16:00,18:00,20:00",
-                          help="Giờ publish cho từng video, cách nhau bằng dấu phẩy "
-                               "(default: '08:00,10:00,12:00,14:00,16:00,18:00,20:00')")
-    p_upload.add_argument("--port", type=int, default=19995, help="GPM API port (default: 19995)")
+                          help="Visibility (default: schedule = hẹn giờ)")
+    p_upload.add_argument("--times", default=None,
+                          help="Giờ publish, override config.json "
+                               "(vd: '08:00,10:00,12:00,14:00,16:00,18:00,20:00')")
+    p_upload.add_argument("--port", type=int, default=None, help="GPM API port (override config.json)")
     p_upload.set_defaults(func=cmd_upload_gpm)
+
+    # === Command: list-profiles ===
+    p_list = subparsers.add_parser(
+        "list-profiles",
+        help="Liệt kê tất cả GPM-Login profiles (lấy ID để set config)"
+    )
+    p_list.add_argument("--port", type=int, default=19995, help="GPM API port")
+    p_list.set_defaults(func=cmd_list_profiles)
 
     # === Command: status ===
     p_status = subparsers.add_parser(

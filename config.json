@@ -1,0 +1,28 @@
+{
+  "profiles": {
+    "K1": {
+      "gpm_id": "ca7ad9fc-437e-4537-a992-1993e9d1b10a",
+      "name": "Kênh 1"
+    },
+    "K2": {
+      "gpm_id": "YOUR_GPM_PROFILE_ID_HERE",
+      "name": "Kênh 2"
+    },
+    "K3": {
+      "gpm_id": "YOUR_GPM_PROFILE_ID_HERE",
+      "name": "Kênh 3"
+    },
+    "K4": {
+      "gpm_id": "YOUR_GPM_PROFILE_ID_HERE",
+      "name": "Kênh 4"
+    },
+    "K5": {
+      "gpm_id": "YOUR_GPM_PROFILE_ID_HERE",
+      "name": "Kênh 5"
+    }
+  },
+  "publish_times": ["08:00", "10:00", "12:00", "14:00", "16:00", "18:00", "20:00"],
+  "per_day": 7,
+  "gap_days": 10,
+  "gpm_port": 19995
+}

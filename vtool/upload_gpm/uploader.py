@@ -2,13 +2,14 @@
 Upload video lên YouTube qua GPM-Login API + Selenium.
 
 Flow:
-1. Đọc schedule.json → xác định hôm nay upload video nào cho kênh nào
-2. Gọi GPM API mở profile → lấy debug port
-3. Connect Selenium vào browser
-4. Vào YouTube Studio → Upload video + title + desc + thumbnail
-5. Set Schedule (hẹn giờ publish)
-6. Đóng profile
-7. Ghi log
+1. Đọc config.json + schedule.json
+2. Xác định upload cho ngày nào (hôm nay + N ngày tới nếu --days)
+3. Gọi GPM API mở profile → lấy debug port
+4. Connect Selenium vào browser
+5. Upload video + title + desc + thumbnail
+6. Set Schedule (hẹn giờ publish đúng ngày đúng giờ)
+7. Đóng profile
+8. Ghi log
 """
 
 import json
@@ -32,37 +33,91 @@ except ImportError:
     HAS_SELENIUM = False
 
 
-# GPM-Login API
 GPM_API_BASE = "http://localhost:19995"
+
+
+def load_config(config_path: str = "config.json") -> dict:
+    """Đọc config.json."""
+    if not os.path.exists(config_path):
+        return {}
+    with open(config_path, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def list_gpm_profiles(gpm_port: int = 19995):
+    """Liệt kê tất cả GPM profiles."""
+    try:
+        resp = requests.get(f"http://localhost:{gpm_port}/api/v3/profiles", timeout=5)
+        if resp.status_code == 200:
+            data = resp.json()
+            profiles = data.get("data", [])
+            print("=" * 60)
+            print("👤 GPM-LOGIN PROFILES")
+            print("=" * 60)
+            for p in profiles:
+                print(f"  ID:   {p['id']}")
+                print(f"  Name: {p.get('name', 'N/A')}")
+                print(f"  ---")
+            print(f"\n  Tổng: {len(profiles)} profiles")
+            print("=" * 60)
+            print("\n💡 Copy ID vào config.json để dùng cho upload.")
+            return profiles
+    except Exception as e:
+        print(f"❌ Không kết nối được GPM-Login: {e}")
+        print("   Mở GPM-Login trước rồi thử lại.")
+    return []
 
 
 def upload_daily(
     schedule_dir: str = "schedules",
-    profiles_map: dict = None,
-    visibility: str = "schedule",
+    config_path: str = "config.json",
+    days: int = 1,
+    visibility: str = None,
     publish_times: list = None,
-    gpm_port: int = 19995,
+    profiles_map: dict = None,
+    gpm_port: int = None,
 ):
     """
-    Upload video theo lịch hôm nay.
+    Upload video theo lịch.
     
     Args:
         schedule_dir: Thư mục chứa schedule.json
-        profiles_map: Dict mapping {profile_name: gpm_profile_id}
+        config_path: Đường dẫn config.json
+        days: Số ngày upload (1 = chỉ hôm nay, 5 = hôm nay + 4 ngày tới)
         visibility: public / unlisted / private / schedule
-        publish_times: Danh sách giờ publish (vd: ["08:00","10:00","12:00",...])
+        publish_times: Danh sách giờ publish
+        profiles_map: Dict mapping {profile_name: gpm_profile_id}
         gpm_port: Port GPM-Login API
     """
     global GPM_API_BASE
-    GPM_API_BASE = f"http://localhost:{gpm_port}"
     
     if not HAS_SELENIUM:
         print("❌ Selenium chưa cài. Chạy: pip install selenium")
         sys.exit(1)
     
-    # Default publish times: 7 khung giờ trong ngày
+    # Load config
+    config = load_config(config_path)
+    
+    # Merge config với arguments (arguments ưu tiên hơn)
+    if gpm_port is None:
+        gpm_port = config.get("gpm_port", 19995)
+    GPM_API_BASE = f"http://localhost:{gpm_port}"
+    
     if publish_times is None:
-        publish_times = ["08:00", "10:00", "12:00", "14:00", "16:00", "18:00", "20:00"]
+        publish_times = config.get("publish_times", 
+                                   ["08:00", "10:00", "12:00", "14:00", "16:00", "18:00", "20:00"])
+    
+    if visibility is None:
+        visibility = "schedule"
+    
+    # Build profiles map từ config nếu chưa có
+    if profiles_map is None:
+        profiles_map = {}
+        for key, val in config.get("profiles", {}).items():
+            if isinstance(val, dict):
+                profiles_map[key] = val.get("gpm_id", "")
+            else:
+                profiles_map[key] = val
     
     # Đọc schedule
     schedule_file = os.path.join(schedule_dir, "schedule.json")
@@ -74,17 +129,22 @@ def upload_daily(
     with open(schedule_file, "r", encoding="utf-8") as f:
         schedule_data = json.load(f)
     
-    today = datetime.now().strftime("%Y-%m-%d")
     schedule = schedule_data["schedule"]
+    
+    # Xác định các ngày cần upload
+    today = datetime.now()
+    upload_dates = []
+    for i in range(days):
+        d = today + timedelta(days=i)
+        upload_dates.append(d.strftime("%Y-%m-%d"))
     
     print("=" * 60)
     print("🚀 UPLOAD GPM - YouTube Auto Upload + Schedule")
     print("=" * 60)
-    print(f"📅 Hôm nay: {today}")
-    print(f"👤 Profiles: {list(schedule.keys())}")
+    print(f"📅 Upload cho: {upload_dates[0]} → {upload_dates[-1]} ({days} ngày)")
+    print(f"👤 Profiles: {list(profiles_map.keys())}")
     print(f"🔒 Mode: {'Schedule (hẹn giờ)' if visibility == 'schedule' else visibility}")
-    if visibility == "schedule":
-        print(f"⏰ Giờ publish: {', '.join(publish_times)}")
+    print(f"⏰ Giờ publish: {', '.join(publish_times)}")
     print("=" * 60)
     
     # Log file
@@ -93,38 +153,42 @@ def upload_daily(
     total_uploaded = 0
     total_errors = 0
     
-    for profile_name, days in schedule.items():
-        if today not in days:
-            print(f"\n  ⏭️  {profile_name}: Không có video cho hôm nay")
-            continue
+    for profile_name, days_schedule in schedule.items():
+        # Tìm GPM ID
+        gpm_id = profiles_map.get(profile_name, "")
         
-        videos_today = days[today]
-        print(f"\n  👤 {profile_name}: {len(videos_today)} video cần upload")
-        
-        # Tìm GPM profile ID
-        gpm_id = None
-        if profiles_map and profile_name in profiles_map:
-            gpm_id = profiles_map[profile_name]
-        else:
-            gpm_id = _find_gpm_profile(profile_name)
+        if not gpm_id or gpm_id == "YOUR_GPM_PROFILE_ID_HERE":
+            # Thử tìm theo tên trong GPM
+            gpm_id = _find_gpm_profile_by_name(profile_name)
         
         if not gpm_id:
-            print(f"     ❌ Không tìm thấy GPM profile: {profile_name}")
-            total_errors += len(videos_today)
+            print(f"\n  ❌ {profile_name}: Chưa set GPM ID trong config.json")
             continue
+        
+        # Kiểm tra có video nào cần upload không
+        videos_to_upload = []
+        for date_str in upload_dates:
+            if date_str in days_schedule:
+                for video_name in days_schedule[date_str]:
+                    videos_to_upload.append((date_str, video_name))
+        
+        if not videos_to_upload:
+            print(f"\n  ⏭️  {profile_name}: Không có video cho các ngày này")
+            continue
+        
+        print(f"\n  👤 {profile_name}: {len(videos_to_upload)} video cần upload")
         
         # Mở profile GPM
         driver = _open_gpm_profile(gpm_id)
         if not driver:
             print(f"     ❌ Không mở được profile GPM: {profile_name}")
-            total_errors += len(videos_today)
+            total_errors += len(videos_to_upload)
             continue
         
         try:
-            # Tìm folder chứa video hôm nay
-            day_folder = _find_day_folder(schedule_dir, profile_name, today)
-            
-            for idx, video_name in enumerate(videos_today):
+            for idx, (date_str, video_name) in enumerate(videos_to_upload):
+                # Tìm folder chứa video
+                day_folder = _find_day_folder(schedule_dir, profile_name, date_str)
                 video_path = os.path.join(day_folder, video_name) if day_folder else None
                 
                 if not video_path or not os.path.exists(video_path):
@@ -132,25 +196,21 @@ def upload_daily(
                     total_errors += 1
                     continue
                 
-                # Xác định giờ publish cho video này
-                publish_time = None
-                if visibility == "schedule":
-                    time_idx = idx % len(publish_times)
-                    publish_time = publish_times[time_idx]
+                # Xác định giờ publish
+                video_idx_in_day = idx % len(publish_times)
+                publish_time = publish_times[video_idx_in_day]
                 
                 success = _upload_single_video(
-                    driver, video_path, day_folder, visibility, publish_time, today
+                    driver, video_path, day_folder, visibility, publish_time, date_str
                 )
                 
                 if success:
-                    time_info = f" → hẹn {publish_time}" if publish_time else ""
-                    print(f"     ✅ {video_name}{time_info}")
+                    print(f"     ✅ {video_name} → {date_str} {publish_time}")
                     total_uploaded += 1
                 else:
                     print(f"     ❌ {video_name}")
                     total_errors += 1
                 
-                # Delay giữa các video
                 time.sleep(5)
         
         finally:
@@ -161,20 +221,21 @@ def upload_daily(
                 pass
     
     # Ghi log
-    _write_log(log_file, today, schedule, total_uploaded, total_errors, publish_times)
+    _write_log(log_file, upload_dates, schedule, total_uploaded, total_errors, publish_times)
     
     # Summary
     print("\n" + "=" * 60)
-    print(f"📊 KẾT QUẢ HÔM NAY ({today}):")
+    print(f"📊 KẾT QUẢ:")
     print(f"   ✅ Upload thành công: {total_uploaded}")
     print(f"   ❌ Lỗi: {total_errors}")
+    print(f"   📅 Đã upload cho: {upload_dates[0]} → {upload_dates[-1]}")
     print(f"   📋 Log: {log_file}")
     print("=" * 60)
     
-    _print_progress(schedule, today)
+    _print_progress(schedule, upload_dates[-1])
 
 
-def _find_gpm_profile(name: str) -> str:
+def _find_gpm_profile_by_name(name: str) -> str:
     """Tìm GPM profile ID theo tên."""
     try:
         resp = requests.get(f"{GPM_API_BASE}/api/v3/profiles", timeout=5)
@@ -232,15 +293,15 @@ def _close_gpm_profile(profile_id: str):
         pass
 
 
-def _find_day_folder(schedule_dir: str, profile_name: str, today: str) -> str:
-    """Tìm folder chứa video cho ngày hôm nay."""
+def _find_day_folder(schedule_dir: str, profile_name: str, target_date: str) -> str:
+    """Tìm folder chứa video cho ngày cụ thể."""
     profile_dir = os.path.join(schedule_dir, profile_name)
     
     if not os.path.exists(profile_dir):
         return None
     
     for folder in sorted(Path(profile_dir).iterdir()):
-        if folder.is_dir() and today in folder.name:
+        if folder.is_dir() and target_date in folder.name:
             return str(folder)
     
     return None
@@ -286,7 +347,7 @@ def _upload_single_video(
         
         # Click "Upload videos"
         upload_option = wait.until(EC.element_to_be_clickable(
-            (By.XPATH, 
+            (By.XPATH,
              "//tp-yt-paper-item[contains(., 'Upload videos') or contains(., 'Tải video lên')]")
         ))
         upload_option.click()
@@ -353,14 +414,14 @@ def _upload_single_video(
             time.sleep(2)
         
         # === SET VISIBILITY / SCHEDULE ===
-        if visibility == "schedule" and publish_time:
+        if visibility == "schedule" and publish_time and publish_date:
             _set_schedule(driver, wait, publish_date, publish_time)
         else:
             _set_visibility(driver, wait, visibility)
         
         time.sleep(2)
         
-        # Đợi video xử lý xong (check progress)
+        # Đợi nút Done active
         _wait_for_processing(driver, timeout=60)
         
         # Click Publish/Schedule/Save
@@ -391,9 +452,9 @@ def _set_schedule(driver, wait, publish_date: str, publish_time: str):
     """
     Set schedule (hẹn giờ publish) cho video.
     
-    YouTube Studio flow:
+    YouTube Studio:
     1. Click radio "Schedule"
-    2. Set date
+    2. Set date (nếu khác hôm nay)
     3. Set time
     """
     try:
@@ -404,64 +465,72 @@ def _set_schedule(driver, wait, publish_date: str, publish_time: str):
         schedule_radio.click()
         time.sleep(2)
         
-        # Set date - click vào date picker
-        # YouTube mặc định ngày mai, ta cần set đúng ngày
-        try:
-            date_picker = driver.find_element(
-                By.CSS_SELECTOR, "#datepicker-trigger, ytcp-date-picker"
-            )
-            date_picker.click()
-            time.sleep(1)
-            
-            # Parse ngày cần set
-            target_date = datetime.strptime(publish_date, "%Y-%m-%d")
-            day_str = str(target_date.day)
-            
-            # Tìm và click ngày trong calendar
-            # YouTube calendar hiển thị ngày hiện tại, ta click ngày target
-            day_buttons = driver.find_elements(
-                By.CSS_SELECTOR, ".tp-yt-paper-calendar-day, .calendar-day"
-            )
-            for btn in day_buttons:
-                if btn.text.strip() == day_str:
-                    btn.click()
-                    break
-            time.sleep(1)
-        except Exception:
-            pass  # Giữ ngày mặc định (hôm nay hoặc ngày mai)
+        # === SET DATE ===
+        today_str = datetime.now().strftime("%Y-%m-%d")
+        if publish_date != today_str:
+            try:
+                # Click date picker
+                date_picker = driver.find_element(
+                    By.CSS_SELECTOR, 
+                    "#datepicker-trigger, ytcp-date-picker, "
+                    "[class*='datepicker'], [id*='datepicker']"
+                )
+                date_picker.click()
+                time.sleep(1)
+                
+                target_date = datetime.strptime(publish_date, "%Y-%m-%d")
+                day_str = str(target_date.day)
+                
+                # Tìm và click ngày trong calendar
+                day_buttons = driver.find_elements(
+                    By.CSS_SELECTOR, 
+                    ".tp-yt-paper-calendar-day, .calendar-day, "
+                    "[class*='day']:not([class*='disabled'])"
+                )
+                for btn in day_buttons:
+                    if btn.text.strip() == day_str and btn.is_displayed():
+                        btn.click()
+                        break
+                time.sleep(1)
+            except Exception:
+                pass  # Giữ ngày mặc định
         
-        # Set time
+        # === SET TIME ===
         try:
+            # Tìm input time
             time_input = driver.find_element(
-                By.CSS_SELECTOR, 
+                By.CSS_SELECTOR,
                 "#time-of-day-trigger input, "
-                "ytcp-form-input-container input[aria-label*='time' i], "
-                "ytcp-form-input-container input[aria-label*='giờ' i], "
-                "#time-of-day-container input"
+                "input[aria-label*='time' i], "
+                "input[aria-label*='giờ' i], "
+                "#time-of-day-container input, "
+                "[class*='time'] input"
             )
             time_input.click()
             time.sleep(0.5)
+            
+            # Clear và nhập giờ mới
             time_input.send_keys(Keys.CONTROL + "a")
             time_input.send_keys(publish_time)
             time_input.send_keys(Keys.TAB)
             time.sleep(1)
         except Exception:
-            # Fallback: tìm dropdown time
+            # Fallback: click dropdown chọn giờ
             try:
-                time_dropdown = driver.find_element(
+                time_trigger = driver.find_element(
                     By.CSS_SELECTOR, "#time-of-day-trigger"
                 )
-                time_dropdown.click()
+                time_trigger.click()
                 time.sleep(1)
                 
-                # Tìm option gần nhất với publish_time
-                time_options = driver.find_elements(
-                    By.CSS_SELECTOR, 
-                    "tp-yt-paper-item, ytcp-text-dropdown-trigger-option"
+                # Tìm option gần nhất
+                options = driver.find_elements(
+                    By.CSS_SELECTOR,
+                    "tp-yt-paper-item, tp-yt-paper-listbox tp-yt-paper-item"
                 )
-                for option in time_options:
-                    if publish_time in option.text:
-                        option.click()
+                for opt in options:
+                    if publish_time in opt.text:
+                        opt.click()
                         break
                 time.sleep(1)
             except Exception:
@@ -473,7 +542,7 @@ def _set_schedule(driver, wait, publish_date: str, publish_time: str):
 
 
 def _set_visibility(driver, wait, visibility: str):
-    """Set visibility cho video (public/unlisted/private)."""
+    """Set visibility (public/unlisted/private)."""
     try:
         if visibility == "public":
             radio = driver.find_element(By.CSS_SELECTOR, "[name='PUBLIC']")
@@ -496,43 +565,41 @@ def _set_visibility(driver, wait, visibility: str):
 
 
 def _wait_for_processing(driver, timeout: int = 60):
-    """Đợi YouTube xử lý video (không bắt buộc phải xong 100%)."""
+    """Đợi nút Done active."""
     try:
-        # Đợi tối đa timeout giây cho nút Done/Schedule active
         WebDriverWait(driver, timeout).until(
             EC.element_to_be_clickable(
                 (By.CSS_SELECTOR, "#done-button, ytcp-button#done-button")
             )
         )
     except Exception:
-        pass  # Timeout thì cứ bấm Done
+        pass
 
 
-def _write_log(log_file: str, today: str, schedule: dict, uploaded: int, errors: int, times: list):
+def _write_log(log_file: str, upload_dates: list, schedule: dict, uploaded: int, errors: int, times: list):
     """Ghi log upload."""
+    now = datetime.now()
+    
     with open(log_file, "a", encoding="utf-8") as f:
         f.write(f"\n{'=' * 60}\n")
-        f.write(f"📅 {today} - Upload Report\n")
+        f.write(f"📅 {now.strftime('%Y-%m-%d %H:%M:%S')} - Upload Report\n")
         f.write(f"{'=' * 60}\n")
         f.write(f"✅ Uploaded: {uploaded}\n")
         f.write(f"❌ Errors: {errors}\n")
+        f.write(f"📅 Dates: {upload_dates[0]} → {upload_dates[-1]} ({len(upload_dates)} ngày)\n")
         f.write(f"⏰ Publish times: {', '.join(times)}\n")
-        f.write(f"🕐 Run at: {datetime.now().strftime('%H:%M:%S')}\n")
         f.write(f"\n")
         
         f.write(f"📊 TIẾN ĐỘ CÁC KÊNH:\n")
+        last_date = upload_dates[-1]
         for profile_name, days in schedule.items():
             sorted_dates = sorted(days.keys())
             if not sorted_dates:
                 continue
             
-            current_day_idx = 0
-            for i, d in enumerate(sorted_dates):
-                if d <= today:
-                    current_day_idx = i + 1
-            
+            current_day_idx = sum(1 for d in sorted_dates if d <= last_date)
             total_days = len(sorted_dates)
-            end_date = sorted_dates[-1] if sorted_dates else "N/A"
+            end_date = sorted_dates[-1]
             remaining = total_days - current_day_idx
             
             f.write(f"   👤 {profile_name}: ngày {current_day_idx}/{total_days} "
@@ -541,7 +608,7 @@ def _write_log(log_file: str, today: str, schedule: dict, uploaded: int, errors:
         f.write(f"\n")
 
 
-def _print_progress(schedule: dict, today: str):
+def _print_progress(schedule: dict, last_date: str):
     """In tiến độ các kênh ra console."""
     print(f"\n📊 TIẾN ĐỘ CÁC KÊNH:")
     
@@ -550,11 +617,7 @@ def _print_progress(schedule: dict, today: str):
         if not sorted_dates:
             continue
         
-        current_day_idx = 0
-        for i, d in enumerate(sorted_dates):
-            if d <= today:
-                current_day_idx = i + 1
-        
+        current_day_idx = sum(1 for d in sorted_dates if d <= last_date)
         total_days = len(sorted_dates)
         start_date = sorted_dates[0]
         end_date = sorted_dates[-1]
