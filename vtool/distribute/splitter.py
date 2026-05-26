@@ -58,7 +58,7 @@ def distribute_videos(
     print(f"📂 Input: {input_dir}/ ({total_videos} videos)")
     print(f"👤 Profiles: {num_profiles} kênh")
     print(f"📅 Per day: {per_day} video/kênh/ngày")
-    print(f"🔄 Gap: {gap_days} ngày (video trùng giữa các kênh)")
+    print(f"🔄 Mode: Xoay vòng (mỗi kênh đăng tất cả {total_videos} video)")
     print(f"📆 Start: {start.strftime('%Y-%m-%d')}")
     print("=" * 60)
     
@@ -126,39 +126,35 @@ def _create_schedule(
     """
     Tạo schedule phân phối video cho các profile.
     
-    Logic:
-    - Shuffle video list cho mỗi profile
-    - Đảm bảo video trùng giữa các kênh cách nhau >= gap_days
+    Logic xoay vòng:
+    - Chia video thành N phần (N = số kênh)
+    - Mỗi kênh bắt đầu từ phần khác nhau, rồi xoay vòng qua tất cả phần
+    - Ví dụ 5 kênh, 1000 video:
+      K1: 1-200 → 201-400 → 401-600 → 601-800 → 801-1000
+      K2: 201-400 → 401-600 → 601-800 → 801-1000 → 1-200
+      K3: 401-600 → 601-800 → 801-1000 → 1-200 → 201-400
+      ...
+    - Video trùng giữa 2 kênh cách nhau ~(chunk_size / per_day) ngày
     """
     num_profiles = len(profiles)
     total_videos = len(videos)
     
-    # Chia video cho từng profile
-    # Shuffle khác nhau cho mỗi profile để đa dạng
-    profile_videos = {}
+    # Chia video thành N phần
+    chunk_size = total_videos // num_profiles
+    chunks = []
+    for i in range(num_profiles):
+        start_idx = i * chunk_size
+        end_idx = start_idx + chunk_size if i < num_profiles - 1 else total_videos
+        chunks.append(videos[start_idx:end_idx])
     
-    if num_profiles == 1:
-        # 1 kênh: lấy hết
-        profile_videos[profiles[0]] = list(videos)
-    else:
-        # Nhiều kênh: chia đều, shuffle khác nhau
-        # Mỗi kênh nhận tất cả video nhưng thứ tự khác nhau
-        # Video trùng sẽ được đăng cách nhau >= gap_days nhờ shuffle khác
-        videos_per_profile = total_videos // num_profiles
-        
-        shuffled = list(videos)
-        
-        for i, profile in enumerate(profiles):
-            # Mỗi profile lấy 1 phần khác nhau
-            start_idx = i * videos_per_profile
-            end_idx = start_idx + videos_per_profile
-            
-            if i == num_profiles - 1:
-                # Profile cuối lấy hết phần còn lại
-                end_idx = total_videos
-            
-            profile_videos[profile] = shuffled[start_idx:end_idx]
-            random.shuffle(profile_videos[profile])
+    # Mỗi kênh xoay vòng qua tất cả chunks, bắt đầu từ vị trí khác nhau
+    profile_videos = {}
+    for i, profile in enumerate(profiles):
+        ordered_videos = []
+        for j in range(num_profiles):
+            chunk_idx = (i + j) % num_profiles
+            ordered_videos.extend(chunks[chunk_idx])
+        profile_videos[profile] = ordered_videos
     
     # Tạo schedule theo ngày
     schedule = {}
