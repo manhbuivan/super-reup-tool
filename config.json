@@ -28,5 +28,9 @@
   },
   "per_day": 7,
   "gap_days": 10,
-  "gpm_port": 19995
+  "gpm_port": 19995,
+  "telegram": {
+    "bot_token": "YOUR_BOT_TOKEN_HERE",
+    "chat_id": "YOUR_CHAT_ID_HERE"
+  }
 }

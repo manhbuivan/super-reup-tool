@@ -265,3 +265,25 @@ def batch_process(config: ReplaceBgConfig):
     print(f"   ⏱️  Tổng thời gian: {total_time}s")
     print(f"   📁 Output: {config.output_dir}/")
     print("=" * 60)
+
+    # Gửi thông báo Telegram
+    try:
+        import json as _json
+        config_path = "config.json"
+        if os.path.exists(config_path):
+            with open(config_path, "r", encoding="utf-8") as f:
+                app_config = _json.load(f)
+            tg = app_config.get("telegram", {})
+            bot_token = tg.get("bot_token", "")
+            chat_id = tg.get("chat_id", "")
+            if bot_token and chat_id and "YOUR_" not in bot_token:
+                from vtool.notify import send_telegram
+                msg = (
+                    f"🎬 <b>Replace BG hoàn thành!</b>\n"
+                    f"✅ Thành công: {success}/{total}\n"
+                    f"❌ Lỗi: {errors}/{total}\n"
+                    f"⏱️ Thời gian: {total_time}s"
+                )
+                send_telegram(msg, bot_token, chat_id)
+    except Exception:
+        pass
