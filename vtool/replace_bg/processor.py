@@ -214,12 +214,19 @@ def batch_process(config: ReplaceBgConfig):
 
     # Chuẩn bị tasks
     tasks = []
+    skipped = 0
     for video_path in input_videos:
         bg = random.choice(backgrounds)
         stem = Path(video_path).stem
         # Bỏ prefix "new_" để giữ tên gốc
         output_name = f"{stem}.{config.output_format}"
         output_path = os.path.join(config.output_dir, output_name)
+        
+        # Skip nếu output đã tồn tại
+        if os.path.exists(output_path):
+            skipped += 1
+            continue
+        
         tasks.append((video_path, bg, output_path, config))
 
         # Copy metadata (.json, .jpg) sang output dir
@@ -230,6 +237,9 @@ def batch_process(config: ReplaceBgConfig):
                 import shutil
                 meta_dst = os.path.join(config.output_dir, f"{stem}{ext}")
                 shutil.copy2(meta_src, meta_dst)
+    
+    if skipped > 0:
+        print(f"⏭️  Bỏ qua {skipped} video đã có trong output")
 
     # Xử lý song song
     total = len(tasks)
