@@ -20,3 +20,4 @@ class ReplaceBgConfig:
     auto_detect: bool = True  # Auto-detect text region
     text_ratio: float = 0.30  # Fallback nếu auto-detect thất bại
     detect_sample_times: list = field(default_factory=lambda: [1.0, 3.0, 5.0])
+    limit: int = None  # Giới hạn số video xử lý

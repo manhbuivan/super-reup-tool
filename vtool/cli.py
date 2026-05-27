@@ -30,6 +30,7 @@ def cmd_replace_bg(args):
         crf=args.crf,
         use_gpu=args.gpu,
         output_format=args.format,
+        limit=args.limit,
     )
 
     # Validate directories
@@ -411,6 +412,7 @@ def main():
     p_replace.add_argument("--gpu", action="store_true",
                            help="Dùng GPU (Mac: videotoolbox, Win: nvenc, Linux: nvenc)")
     p_replace.add_argument("--format", default="mp4", help="Output format (default: mp4)")
+    p_replace.add_argument("--limit", type=int, default=None, help="Giới hạn số video xử lý")
     p_replace.set_defaults(func=cmd_replace_bg)
 
     # === Command: distribute ===

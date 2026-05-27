@@ -159,6 +159,10 @@ def batch_process(config: ReplaceBgConfig):
         print(f"❌ Không tìm thấy video nào trong '{config.input_dir}/'")
         sys.exit(1)
 
+    # Giới hạn số video
+    if config.limit:
+        input_videos = input_videos[:config.limit]
+
     # Lấy danh sách backgrounds
     backgrounds = list_media_files(config.background_dir, VIDEO_EXTENSIONS | IMAGE_EXTENSIONS)
     if not backgrounds:
