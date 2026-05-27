@@ -149,23 +149,22 @@ Lưu ý: Video Twitch dài có thể tải lâu (tuỳ mạng), tool sẽ đợi
 ### Bước 4: Thay nền video
 
 ```powershell
-python run.py replace-bg
+python run.py replace-bg --gpu --workers 2
 ```
 
-Tuỳ chọn:
+Đây là lệnh tối ưu nhất cho máy i5-12400F + 16GB RAM + GTX 1660 Ti.
+
+Tuỳ chọn khác:
 
 ```powershell
-# Máy yếu (ít RAM)
-python run.py replace-bg --workers 2 --preset veryfast
+# Chỉ dùng CPU (không có GPU NVIDIA)
+python run.py replace-bg --workers 4 --preset veryfast
 
-# Chất lượng cao
-python run.py replace-bg --crf 18
-
-# Dùng GPU NVIDIA
-python run.py replace-bg --gpu
+# Chất lượng cao hơn (chậm hơn)
+python run.py replace-bg --gpu --workers 2 --crf 18
 
 # Tắt auto-detect, fix text bar 30%
-python run.py replace-bg --no-detect --text-ratio 0.30
+python run.py replace-bg --gpu --workers 2 --no-detect --text-ratio 0.30
 ```
 
 Kết quả: folder `output_videos/` chứa video đã thay nền + .json + .jpg
