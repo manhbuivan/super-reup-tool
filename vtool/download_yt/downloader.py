@@ -205,10 +205,10 @@ def _sanitize_filename(name: str) -> str:
 
 
 def _get_format_string(quality: str) -> str:
-    """Trả về format string cho yt-dlp."""
+    """Trả về format string cho yt-dlp. Ưu tiên h264 để tương thích Windows."""
     if quality == "720":
-        return "bestvideo[height<=720]+bestaudio/best[height<=720]"
+        return "bestvideo[height<=720][vcodec^=avc1]+bestaudio[acodec^=mp4a]/bestvideo[height<=720]+bestaudio/best[height<=720]"
     elif quality == "1080":
-        return "bestvideo[height<=1080]+bestaudio/best[height<=1080]"
+        return "bestvideo[height<=1080][vcodec^=avc1]+bestaudio[acodec^=mp4a]/bestvideo[height<=1080]+bestaudio/best[height<=1080]"
     else:
-        return "bestvideo+bestaudio/best"
+        return "bestvideo[vcodec^=avc1]+bestaudio[acodec^=mp4a]/bestvideo+bestaudio/best"
