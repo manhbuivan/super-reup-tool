@@ -255,6 +255,54 @@ def cmd_detect(args):
         print("⚠️  Low confidence. Có thể cần điều chỉnh --text-ratio thủ công.")
 
 
+def cmd_check(args):
+    """Command: Check tất cả video trong folder xem file nào bị lỗi."""
+    import subprocess
+    from pathlib import Path
+    from vtool.core.ffmpeg import VIDEO_EXTENSIONS
+
+    folder = args.folder
+    print(f"🔍 Checking videos in: {folder}/")
+    print("=" * 60)
+
+    good = []
+    bad = []
+
+    files = sorted(Path(folder).iterdir())
+    videos = [f for f in files if f.suffix.lower() in VIDEO_EXTENSIONS]
+
+    for i, f in enumerate(videos, 1):
+        cmd = [
+            "ffprobe", "-v", "error",
+            "-select_streams", "v:0",
+            "-show_entries", "stream=width,height,duration",
+            "-of", "csv=p=0",
+            str(f)
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace")
+
+        if result.returncode != 0 or not result.stdout.strip():
+            bad.append(f.name)
+            print(f"  [{i}/{len(videos)}] ❌ {f.name}")
+            if result.stderr.strip():
+                print(f"           {result.stderr.strip()[:100]}")
+        else:
+            good.append(f.name)
+            print(f"  [{i}/{len(videos)}] ✅ {f.name}")
+
+    print("\n" + "=" * 60)
+    print(f"📊 KẾT QUẢ:")
+    print(f"   ✅ OK: {len(good)}")
+    print(f"   ❌ Lỗi: {len(bad)}")
+
+    if bad:
+        print(f"\n❌ Danh sách file lỗi:")
+        for name in bad:
+            print(f"   - {name}")
+
+    print("=" * 60)
+
+
 def cmd_info(args):
     """Command: Hiển thị thông tin tool."""
     from vtool import __version__, __app_name__
@@ -424,6 +472,15 @@ def main():
     )
     p_detect.add_argument("video", help="Đường dẫn video cần detect")
     p_detect.set_defaults(func=cmd_detect)
+
+    # === Command: check ===
+    p_check = subparsers.add_parser(
+        "check",
+        help="Check video nào bị lỗi trong folder"
+    )
+    p_check.add_argument("folder", nargs="?", default="backgrounds",
+                         help="Folder cần check (default: backgrounds)")
+    p_check.set_defaults(func=cmd_check)
 
     # Parse
     args = parser.parse_args()
