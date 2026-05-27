@@ -74,7 +74,8 @@ def process_single_video(args: tuple) -> dict:
         bg_ext = Path(background_path).suffix.lower()
         is_video_bg = bg_ext in VIDEO_EXTENSIONS
 
-        # Chọn codec
+        # Chọn codec + hardware acceleration
+        hw_decode = []
         if config.use_gpu:
             import platform
             system = platform.system()
@@ -84,10 +85,11 @@ def process_single_video(args: tuple) -> dict:
             elif system == "Windows":
                 vcodec = "h264_nvenc"
                 extra_params = ["-preset", "p4", "-cq", str(config.crf)]
+                hw_decode = ["-hwaccel", "cuda"]
             else:
-                # Linux: thử nvenc, fallback về libx264
                 vcodec = "h264_nvenc"
                 extra_params = ["-preset", "p4", "-cq", str(config.crf)]
+                hw_decode = ["-hwaccel", "cuda"]
         else:
             vcodec = config.video_codec
             extra_params = ["-preset", config.preset, "-crf", str(config.crf)]
@@ -111,6 +113,7 @@ def process_single_video(args: tuple) -> dict:
 
         cmd = [
             "ffmpeg", "-y",
+            *hw_decode,
             "-i", video_path,
             *input_bg_args,
             "-filter_complex", filter_complex,
