@@ -85,7 +85,7 @@ def process_single_video(args: tuple) -> dict:
             elif system == "Windows":
                 vcodec = "h264_nvenc"
                 extra_params = ["-preset", "p4", "-cq", str(config.crf)]
-                hw_decode = ["-hwaccel", "cuda"]
+                hw_decode = []  # 1660 Ti không decode AV1, để CPU decode
             else:
                 vcodec = "h264_nvenc"
                 extra_params = ["-preset", "p4", "-cq", str(config.crf)]
