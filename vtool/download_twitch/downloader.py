@@ -162,14 +162,6 @@ def _download_and_split(url: str, output_dir: str, quality: str, split_seconds: 
             final_path = os.path.join(output_dir, f"{title}.mp4")
             os.rename(temp_path, final_path)
             result["parts"] = 1
-            
-            # Lưu metadata
-            _save_metadata(output_dir, title, meta, url)
-            
-            # Tải thumbnail
-            thumb_url = meta.get("thumbnail", "")
-            if thumb_url:
-                _download_thumbnail(thumb_url, os.path.join(output_dir, f"{title}.jpg"))
     
     except Exception as e:
         result["status"] = "error"
@@ -186,7 +178,7 @@ def _split_video(
     video_path: str, output_dir: str, title: str,
     duration: float, split_seconds: int, meta: dict, url: str
 ) -> int:
-    """Cắt video thành nhiều phần, mỗi phần split_seconds giây."""
+    """Cắt video thành nhiều phần, mỗi phần split_seconds giây. Chỉ giữ file video."""
     
     num_parts = math.ceil(duration / split_seconds)
     
@@ -210,28 +202,6 @@ def _split_video(
         
         if proc.returncode != 0:
             continue
-        
-        # Lưu metadata cho mỗi phần
-        part_meta = {
-            "title": f"{meta.get('title', title)} - Part {part + 1}",
-            "description": meta.get("description", ""),
-            "tags": meta.get("tags", []),
-            "duration": min(split_seconds, duration - start_time),
-            "channel": meta.get("uploader", meta.get("channel", "")),
-            "original_url": url,
-            "part": part + 1,
-            "total_parts": num_parts,
-        }
-        
-        json_path = os.path.join(output_dir, f"{part_title}.json")
-        with open(json_path, "w", encoding="utf-8") as f:
-            json.dump(part_meta, f, ensure_ascii=False, indent=2)
-        
-        # Thumbnail (dùng chung cho tất cả parts)
-        thumb_url = meta.get("thumbnail", "")
-        if thumb_url:
-            thumb_path = os.path.join(output_dir, f"{part_title}.jpg")
-            _download_thumbnail(thumb_url, thumb_path)
     
     return num_parts
 
