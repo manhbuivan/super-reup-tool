@@ -58,27 +58,12 @@ def process_single_video(args: tuple) -> dict:
         "text_ratio": None,
     }
 
-    # Dùng short temp paths để tránh lỗi Unicode filename trên Windows
-    import tempfile
-    import shutil
-    temp_dir = tempfile.mkdtemp(prefix="vtool_")
-    
     try:
-        # Copy input files sang temp dir với tên ngắn
-        input_ext = Path(video_path).suffix
-        bg_ext = Path(background_path).suffix
-        temp_input = os.path.join(temp_dir, f"input{input_ext}")
-        temp_bg = os.path.join(temp_dir, f"bg{bg_ext}")
-        temp_output = os.path.join(temp_dir, f"output.{config.output_format}")
-        
-        shutil.copy2(video_path, temp_input)
-        shutil.copy2(background_path, temp_bg)
-
         # Lấy thông tin video gốc
-        width, height, duration, fps = get_video_dimensions(temp_input)
+        width, height, duration, fps = get_video_dimensions(video_path)
 
         # Detect text region
-        text_ratio = _detect_or_fallback(temp_input, config)
+        text_ratio = _detect_or_fallback(video_path, config)
         result["text_ratio"] = text_ratio
 
         # Tính toán vùng
@@ -86,7 +71,8 @@ def process_single_video(args: tuple) -> dict:
         bg_height = height - text_height
 
         # Xác định background type
-        is_video_bg = bg_ext.lower() in VIDEO_EXTENSIONS
+        bg_ext = Path(background_path).suffix.lower()
+        is_video_bg = bg_ext in VIDEO_EXTENSIONS
 
         # Chọn codec
         if config.use_gpu:
@@ -116,13 +102,16 @@ def process_single_video(args: tuple) -> dict:
 
         # Build FFmpeg command
         if is_video_bg:
-            input_bg_args = ["-stream_loop", "-1", "-i", temp_bg]
+            input_bg_args = ["-stream_loop", "-1", "-i", background_path]
         else:
-            input_bg_args = ["-loop", "1", "-i", temp_bg]
+            input_bg_args = ["-loop", "1", "-i", background_path]
+
+        # Tạo output dir
+        os.makedirs(os.path.dirname(output_path) if os.path.dirname(output_path) else ".", exist_ok=True)
 
         cmd = [
             "ffmpeg", "-y",
-            "-i", temp_input,
+            "-i", video_path,
             *input_bg_args,
             "-filter_complex", filter_complex,
             "-map", "[out]", "-map", "0:a?",
@@ -132,37 +121,24 @@ def process_single_video(args: tuple) -> dict:
             "-b:a", "128k",
             "-t", str(duration),
             "-shortest",
-            temp_output
+            output_path
         ]
 
         # Chạy FFmpeg
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=600, encoding="utf-8", errors="replace")
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=3600, encoding="utf-8", errors="replace")
 
         if proc.returncode != 0:
             result["status"] = "error"
-            # Lấy dòng lỗi thực sự (bỏ qua metadata/stream info)
             stderr_lines = proc.stderr.split("\n")
             error_lines = [l for l in stderr_lines if any(k in l.lower() for k in ["error", "invalid", "no such", "does not", "failed", "cannot", "not found"])]
             if error_lines:
                 result["error"] = "\n".join(error_lines[-5:])
             else:
-                # Lấy 5 dòng cuối
                 result["error"] = "\n".join(stderr_lines[-5:])
-        else:
-            # Copy output về đúng vị trí
-            os.makedirs(os.path.dirname(output_path) if os.path.dirname(output_path) else ".", exist_ok=True)
-            shutil.copy2(temp_output, output_path)
 
     except Exception as e:
         result["status"] = "error"
         result["error"] = str(e)
-    
-    finally:
-        # Cleanup temp dir
-        try:
-            shutil.rmtree(temp_dir, ignore_errors=True)
-        except Exception:
-            pass
 
     result["time"] = round(time.time() - start_time, 1)
     return result
