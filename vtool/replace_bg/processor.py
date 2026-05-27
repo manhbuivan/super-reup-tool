@@ -94,12 +94,12 @@ def process_single_video(args: tuple) -> dict:
             vcodec = config.video_codec
             extra_params = ["-preset", config.preset, "-crf", str(config.crf)]
 
-        # Filter complex: scale bg full frame → overlay text bar lên trên
+        # Filter complex: scale bg full frame → overlay text bar sát mép dưới
         filter_complex = (
             f"[1:v]scale={width}:{height}:force_original_aspect_ratio=increase,"
             f"crop={width}:{height}[bg];"
-            f"[0:v]crop={width}:{text_height}:0:{bg_height}[text];"
-            f"[bg][text]overlay=0:{bg_height}[out]"
+            f"[0:v]crop={width}:{text_height}:0:{height - text_height}[text];"
+            f"[bg][text]overlay=0:{height - text_height}[out]"
         )
 
         # Build FFmpeg command
