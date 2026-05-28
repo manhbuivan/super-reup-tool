@@ -157,6 +157,9 @@ python run.py replace-bg --gpu --workers 2
 Tuỳ chọn khác:
 
 ```powershell
+# Giảm dung lượng output (720p + CRF 28)
+python run.py replace-bg --gpu --workers 2 --no-detect --text-ratio 0.28 --crf 28 --resolution 720
+
 # Chỉ dùng CPU (không có GPU NVIDIA)
 python run.py replace-bg --workers 4 --preset veryfast
 
@@ -165,7 +168,16 @@ python run.py replace-bg --gpu --workers 2 --crf 18
 
 # Tắt auto-detect, fix text bar 30%
 python run.py replace-bg --gpu --workers 2 --no-detect --text-ratio 0.30
+
+# Chỉ xử lý 1 video (test)
+python run.py replace-bg --gpu --workers 1 --no-detect --text-ratio 0.28 --limit 1
 ```
+
+Lưu ý:
+- Tool tự skip video đã có trong output_videos/ (chạy lại không bị trùng)
+- CRF 23 (default) = chất lượng cao, file lớn
+- CRF 28 = file nhỏ hơn ~50%, chất lượng vẫn ổn cho reup
+- --resolution 720 = scale xuống 720p, tiết kiệm dung lượng
 
 Kết quả: folder `output_videos/` chứa video đã thay nền + .json + .jpg
 
@@ -175,6 +187,12 @@ Kết quả: folder `output_videos/` chứa video đã thay nền + .json + .jpg
 
 ```powershell
 python run.py distribute --profiles "K1,K2,K3,K4,K5" --per-day 7 --gap 10
+```
+
+Nối thêm video mới (không ghi đè schedule cũ):
+
+```powershell
+python run.py distribute --profiles "K1,K2" --append
 ```
 
 Tuỳ chọn:
@@ -222,14 +240,34 @@ python run.py status
 | `python run.py get-urls --channel URL` | Lấy URL video từ channel YouTube |
 | `python run.py download-yt --list urls.txt` | Tải video YouTube + metadata + thumb |
 | `python run.py get-twitch-urls --channel URL` | Lấy URL VOD từ channel Twitch |
-| `python run.py download-twitch --list twitch_urls.txt` | Tải video Twitch + cắt 1h |
-| `python run.py download-twitch --url URL --output backgrounds --split 999` | Tải video Twitch làm background |
-| `python run.py replace-bg` | Thay nền video |
-| `python run.py distribute --profiles "K1,K2,..."` | Chia video theo ngày/kênh |
+| `python run.py download-twitch --list twitch_urls.txt` | Tải video Twitch + cắt 1h → backgrounds/ |
+| `python run.py replace-bg --gpu --workers 2 --no-detect --text-ratio 0.28` | Thay nền video (GPU) |
+| `python run.py replace-bg --gpu --workers 2 --no-detect --text-ratio 0.28 --crf 28 --resolution 720` | Thay nền + giảm dung lượng |
+| `python run.py distribute --profiles "K1,K2"` | Chia video theo ngày/kênh (tạo mới) |
+| `python run.py distribute --profiles "K1,K2" --append` | Nối thêm video mới vào schedule cũ |
 | `python run.py upload-gpm` | Upload hôm nay |
 | `python run.py upload-gpm --days 5` | Upload trước 5 ngày |
 | `python run.py status` | Xem tiến độ các kênh |
+| `python run.py check backgrounds` | Check video nào bị lỗi |
 | `python run.py detect video.mp4` | Test detect vùng text |
+
+---
+
+## Flow thêm video mới (không ảnh hưởng video cũ)
+
+```powershell
+# 1. Xoá input cũ cho nhẹ ổ (tuỳ chọn)
+del input_videos\*
+
+# 2. Tải video mới
+python run.py download-yt --list urls_new.txt
+
+# 3. Replace (tự skip video cũ đã có trong output)
+python run.py replace-bg --gpu --workers 2 --no-detect --text-ratio 0.28 --crf 28 --resolution 720
+
+# 4. Nối vào schedule cũ
+python run.py distribute --profiles "K1,K2" --append
+```
 
 ---
 
