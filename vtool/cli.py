@@ -128,6 +128,7 @@ def cmd_distribute(args):
         per_day=args.per_day,
         gap_days=args.gap,
         start_date=args.start_date,
+        append=args.append,
     )
 
 
@@ -429,6 +430,8 @@ def main():
                         help="Số ngày tối thiểu video trùng giữa các kênh (default: 10)")
     p_dist.add_argument("--start-date", default=None,
                         help="Ngày bắt đầu YYYY-MM-DD (default: hôm nay)")
+    p_dist.add_argument("--append", action="store_true",
+                        help="Nối thêm video mới vào schedule cũ (không ghi đè)")
     p_dist.set_defaults(func=cmd_distribute)
 
     # === Command: upload-gpm ===
