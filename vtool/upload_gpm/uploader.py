@@ -72,6 +72,7 @@ def upload_daily(
     schedule_dir: str = "schedules",
     config_path: str = "config.json",
     days: int = 1,
+    target_date: str = None,
     visibility: str = None,
     publish_times: list = None,
     profiles_map: dict = None,
@@ -134,9 +135,25 @@ def upload_daily(
     # Xác định các ngày cần upload
     today = datetime.now()
     upload_dates = []
-    for i in range(days):
-        d = today + timedelta(days=i)
-        upload_dates.append(d.strftime("%Y-%m-%d"))
+    
+    if target_date:
+        # Parse ngày cụ thể
+        try:
+            if "/" in target_date:
+                # Format: 30/05/2026
+                parsed = datetime.strptime(target_date, "%d/%m/%Y")
+            else:
+                # Format: 2026-05-30
+                parsed = datetime.strptime(target_date, "%Y-%m-%d")
+            upload_dates = [parsed.strftime("%Y-%m-%d")]
+        except ValueError:
+            print(f"❌ Format ngày sai: {target_date}")
+            print("   Dùng: 2026-05-30 hoặc 30/05/2026")
+            sys.exit(1)
+    else:
+        for i in range(days):
+            d = today + timedelta(days=i)
+            upload_dates.append(d.strftime("%Y-%m-%d"))
     
     print("=" * 60)
     print("🚀 UPLOAD GPM - YouTube Auto Upload + Schedule")

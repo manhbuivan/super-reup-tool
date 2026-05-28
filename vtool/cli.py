@@ -171,7 +171,6 @@ def cmd_upload_gpm(args):
 
     profiles_map = None
     if args.profiles_map:
-        # Format: "channel_1:gpm_id_1,channel_2:gpm_id_2"
         profiles_map = {}
         for pair in args.profiles_map.split(","):
             parts = pair.strip().split(":")
@@ -183,10 +182,17 @@ def cmd_upload_gpm(args):
     if args.times:
         publish_times = [t.strip() for t in args.times.split(",")]
 
+    # Parse --date (ngày cụ thể hoặc số ngày)
+    days = args.days
+    target_date = None
+    if args.date:
+        target_date = args.date
+
     upload_daily(
         schedule_dir=args.schedule,
         config_path=args.config,
-        days=args.days,
+        days=days,
+        target_date=target_date,
         visibility=args.visibility,
         publish_times=publish_times,
         profiles_map=profiles_map,
@@ -502,6 +508,8 @@ def main():
     p_upload.add_argument("--config", default="config.json", help="File config (default: config.json)")
     p_upload.add_argument("--days", type=int, default=1,
                           help="Số ngày upload (1=hôm nay, 5=hôm nay + 4 ngày tới)")
+    p_upload.add_argument("--date", default=None,
+                          help="Ngày cụ thể cần upload (format: 2026-05-30 hoặc 30/05/2026)")
     p_upload.add_argument("--profiles-map", default=None,
                           help="Map kênh:GPM_ID (override config.json)")
     p_upload.add_argument("--visibility", default=None,
