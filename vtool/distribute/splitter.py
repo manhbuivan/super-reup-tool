@@ -238,24 +238,36 @@ def _create_schedule(
 
 
 def _copy_video_with_meta(video_name: str, dest_dir: str, source_dir: str):
-    """Copy video + .json + .jpg metadata vào dest folder."""
+    """Tạo symlink (hoặc copy nếu symlink fail) video + metadata vào dest folder."""
     stem = Path(video_name).stem
     source_path = Path(source_dir)
     
-    # Copy video
-    src_video = source_path / video_name
-    if src_video.exists():
-        shutil.copy2(str(src_video), dest_dir)
+    files_to_link = [
+        video_name,
+        f"{stem}.json",
+        f"{stem}.jpg",
+    ]
     
-    # Copy metadata json
-    src_json = source_path / f"{stem}.json"
-    if src_json.exists():
-        shutil.copy2(str(src_json), dest_dir)
-    
-    # Copy thumbnail
-    src_thumb = source_path / f"{stem}.jpg"
-    if src_thumb.exists():
-        shutil.copy2(str(src_thumb), dest_dir)
+    for filename in files_to_link:
+        src = source_path / filename
+        dst = Path(dest_dir) / filename
+        
+        if not src.exists():
+            continue
+        
+        if dst.exists():
+            continue
+        
+        try:
+            # Dùng symlink để không tốn dung lượng
+            os.symlink(str(src.resolve()), str(dst))
+        except (OSError, NotImplementedError):
+            # Windows có thể cần admin quyền cho symlink → dùng hard link
+            try:
+                os.link(str(src), str(dst))
+            except OSError:
+                # Fallback: copy file
+                shutil.copy2(str(src), dest_dir)
 
 
 def _save_schedule(schedule: dict, filepath: str, start: datetime, profiles: list, per_day: int, gap_days: int):
