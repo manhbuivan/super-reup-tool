@@ -133,6 +133,38 @@ def cmd_distribute(args):
     )
 
 
+def cmd_replace_bg_colorkey(args):
+    """Command: Thay nền video bằng color key."""
+    from vtool.replace_bg_colorkey import batch_process_colorkey, ColorKeyConfig
+
+    config = ColorKeyConfig(
+        input_dir=args.input,
+        background_dir=args.backgrounds,
+        output_dir=args.output,
+        max_workers=args.workers,
+        crf=args.crf,
+        use_gpu=args.gpu,
+        output_format=args.format,
+        color=args.color,
+        similarity=args.similarity,
+        blend=args.blend,
+        limit=args.limit,
+        resolution=args.resolution,
+    )
+
+    # Validate directories
+    import os
+    if not os.path.isdir(config.input_dir):
+        print(f"❌ Thư mục input không tồn tại: {config.input_dir}")
+        sys.exit(1)
+
+    if not os.path.isdir(config.background_dir):
+        print(f"❌ Thư mục backgrounds không tồn tại: {config.background_dir}")
+        sys.exit(1)
+
+    batch_process_colorkey(config)
+
+
 def cmd_upload_gpm(args):
     """Command: Upload video lên YouTube qua GPM-Login."""
     from vtool.upload_gpm import upload_daily
@@ -425,6 +457,29 @@ def main():
         "distribute",
         help="Chia video vào folder theo ngày cho từng kênh"
     )
+
+    # === Command: replace-bg-colorkey ===
+    p_colorkey = subparsers.add_parser(
+        "replace-bg-colorkey",
+        help="Thay nền video bằng color key (cho video LINE chat, nền đồng màu)"
+    )
+    p_colorkey.add_argument("--input", default="input_videos", help="Thư mục video input")
+    p_colorkey.add_argument("--backgrounds", default="backgrounds", help="Thư mục backgrounds")
+    p_colorkey.add_argument("--output", default="output_videos", help="Thư mục output")
+    p_colorkey.add_argument("--workers", type=int, default=2, help="Số worker (default: 2)")
+    p_colorkey.add_argument("--color", default="0x2C3E50",
+                            help="Màu nền cần xoá, hex RGB (default: 0x2C3E50 = xám đen LINE)")
+    p_colorkey.add_argument("--similarity", type=float, default=0.3,
+                            help="Độ tương đồng màu 0.0-1.0 (default: 0.3, cao=xoá nhiều)")
+    p_colorkey.add_argument("--blend", type=float, default=0.1,
+                            help="Độ mượt viền 0.0-1.0 (default: 0.1)")
+    p_colorkey.add_argument("--crf", type=int, default=23, help="CRF 18-28 (default: 23)")
+    p_colorkey.add_argument("--gpu", action="store_true", help="Dùng GPU NVIDIA")
+    p_colorkey.add_argument("--format", default="mp4", help="Output format")
+    p_colorkey.add_argument("--limit", type=int, default=None, help="Giới hạn số video")
+    p_colorkey.add_argument("--resolution", type=int, default=None,
+                            choices=[720, 1080], help="Scale output (720/1080)")
+    p_colorkey.set_defaults(func=cmd_replace_bg_colorkey)
     p_dist.add_argument("--input", default="output_videos", help="Thư mục video đã thay nền")
     p_dist.add_argument("--output", default="schedules", help="Thư mục output schedule")
     p_dist.add_argument("--profiles", default="channel_1",
