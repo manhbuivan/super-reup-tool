@@ -21,3 +21,4 @@ class ReplaceBgConfig:
     text_ratio: float = 0.30  # Fallback nếu auto-detect thất bại
     detect_sample_times: list = field(default_factory=lambda: [1.0, 3.0, 5.0])
     limit: int = None  # Giới hạn số video xử lý
+    resolution: int = None  # Output resolution (720, 1080, None=giữ nguyên)

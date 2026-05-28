@@ -31,6 +31,7 @@ def cmd_replace_bg(args):
         use_gpu=args.gpu,
         output_format=args.format,
         limit=args.limit,
+        resolution=args.resolution,
     )
 
     # Validate directories
@@ -414,6 +415,9 @@ def main():
                            help="Dùng GPU (Mac: videotoolbox, Win: nvenc, Linux: nvenc)")
     p_replace.add_argument("--format", default="mp4", help="Output format (default: mp4)")
     p_replace.add_argument("--limit", type=int, default=None, help="Giới hạn số video xử lý")
+    p_replace.add_argument("--resolution", type=int, default=None,
+                           choices=[720, 1080],
+                           help="Scale output (720 hoặc 1080, default: giữ nguyên)")
     p_replace.set_defaults(func=cmd_replace_bg)
 
     # === Command: distribute ===

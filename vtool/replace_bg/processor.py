@@ -95,12 +95,27 @@ def process_single_video(args: tuple) -> dict:
             extra_params = ["-preset", config.preset, "-crf", str(config.crf)]
 
         # Filter complex: scale bg full frame → overlay text bar sát mép dưới
-        filter_complex = (
-            f"[1:v]scale={width}:{height}:force_original_aspect_ratio=increase,"
-            f"crop={width}:{height}[bg];"
-            f"[0:v]crop={width}:{text_height}:0:{height - text_height}[text];"
-            f"[bg][text]overlay=0:{height - text_height}[out]"
-        )
+        # Nếu có resolution target, scale output
+        if config.resolution:
+            target_h = config.resolution
+            target_w = int(width * target_h / height)
+            # Đảm bảo chẵn
+            target_w = target_w if target_w % 2 == 0 else target_w + 1
+            scale_output = f"[out1]scale={target_w}:{target_h}[out]"
+            filter_complex = (
+                f"[1:v]scale={width}:{height}:force_original_aspect_ratio=increase,"
+                f"crop={width}:{height}[bg];"
+                f"[0:v]crop={width}:{text_height}:0:{height - text_height}[text];"
+                f"[bg][text]overlay=0:{height - text_height}[out1];"
+                f"{scale_output}"
+            )
+        else:
+            filter_complex = (
+                f"[1:v]scale={width}:{height}:force_original_aspect_ratio=increase,"
+                f"crop={width}:{height}[bg];"
+                f"[0:v]crop={width}:{text_height}:0:{height - text_height}[text];"
+                f"[bg][text]overlay=0:{height - text_height}[out]"
+            )
 
         # Build FFmpeg command
         if is_video_bg:
