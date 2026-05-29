@@ -292,7 +292,11 @@ def _open_gpm_profile(profile_id: str) -> object:
         browser_location = data["data"].get("browser_location", "")
         
         if not debug_port:
+            print(f"     ⚠️  Không có remote_debugging_address")
+            print(f"     📋 API response: {data['data']}")
             return None
+        
+        print(f"     🔗 Debug port: {debug_port}")
         
         chrome_options = Options()
         chrome_options.add_experimental_option("debuggerAddress", debug_port)
