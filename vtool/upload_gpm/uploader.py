@@ -301,16 +301,24 @@ def _open_gpm_profile(profile_id: str) -> object:
             chrome_options.binary_location = browser_location
         
         try:
+            # Thử dùng chromedriver-binary nếu có
+            try:
+                import chromedriver_binary
+            except ImportError:
+                pass
+            
+            from selenium.webdriver.chrome.service import Service
             driver = webdriver.Chrome(options=chrome_options)
-        except Exception:
-            # Fallback: dùng webdriver-manager tự tải đúng version
+        except Exception as e1:
+            # Fallback: dùng webdriver-manager
             try:
                 from selenium.webdriver.chrome.service import Service
                 from webdriver_manager.chrome import ChromeDriverManager
-                service = Service(ChromeDriverManager().install())
+                service = Service(ChromeDriverManager(driver_version="127.0.6533.88").install())
                 driver = webdriver.Chrome(service=service, options=chrome_options)
-            except ImportError:
-                print("     ⚠️  Cài webdriver-manager: pip install webdriver-manager")
+            except Exception as e2:
+                print(f"     ⚠️  ChromeDriver error: {e2}")
+                print(f"     💡 Thử: pip install chromedriver-binary==127.0.6533.88.0")
                 return None
         
         return driver
