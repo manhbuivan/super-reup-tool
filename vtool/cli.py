@@ -206,6 +206,151 @@ def cmd_list_profiles(args):
     list_gpm_profiles(gpm_port=args.port)
 
 
+def cmd_export_upload(args):
+    """Command: Tạo file Excel upload list cho GPM Automate."""
+    import json
+    import os
+    from datetime import datetime, timedelta
+    from pathlib import Path
+
+    schedule_file = os.path.join(args.schedule, "schedule.json")
+    if not os.path.exists(schedule_file):
+        print(f"❌ Không tìm thấy {schedule_file}")
+        print("   Chạy 'python run.py distribute' trước.")
+        sys.exit(1)
+
+    with open(schedule_file, "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    schedule = data["schedule"]
+
+    # Parse date
+    if args.date:
+        if "/" in args.date:
+            start = datetime.strptime(args.date, "%d/%m/%Y")
+        else:
+            start = datetime.strptime(args.date, "%Y-%m-%d")
+    else:
+        start = datetime.now()
+
+    # Collect dates
+    upload_dates = []
+    for i in range(args.days):
+        d = start + timedelta(days=i)
+        upload_dates.append(d.strftime("%Y-%m-%d"))
+
+    # Load config for publish times
+    config = {}
+    if os.path.exists("config.json"):
+        with open("config.json", "r", encoding="utf-8") as f:
+            config = json.load(f)
+
+    # Filter profile
+    profile_name = args.profile
+    if profile_name not in schedule:
+        print(f"❌ Profile '{profile_name}' không có trong schedule")
+        print(f"   Profiles có: {list(schedule.keys())}")
+        sys.exit(1)
+
+    # Get publish times for this profile
+    profile_config = config.get("profiles", {}).get(profile_name, {})
+    publish_times = profile_config.get("publish_times",
+                                       ["08:00", "10:00", "12:00", "14:00", "16:00", "18:00", "20:00"])
+
+    # Build rows
+    rows = []
+    days_schedule = schedule[profile_name]
+    schedule_dir = args.schedule
+
+    for date_str in upload_dates:
+        if date_str not in days_schedule:
+            continue
+
+        videos = days_schedule[date_str]
+        # Find day folder
+        profile_dir = os.path.join(schedule_dir, profile_name)
+        day_folder = None
+        if os.path.exists(profile_dir):
+            for folder in sorted(Path(profile_dir).iterdir()):
+                if folder.is_dir() and date_str in folder.name:
+                    day_folder = str(folder)
+                    break
+
+        for idx, video_name in enumerate(videos):
+            stem = Path(video_name).stem
+            video_path = os.path.join(day_folder, video_name) if day_folder else ""
+            thumb_path = os.path.join(day_folder, f"{stem}.jpg") if day_folder else ""
+            json_path = os.path.join(day_folder, f"{stem}.json") if day_folder else ""
+
+            # Read metadata
+            title = stem
+            description = ""
+            if json_path and os.path.exists(json_path):
+                with open(json_path, "r", encoding="utf-8") as f:
+                    meta = json.load(f)
+                title = meta.get("title", stem)
+                description = meta.get("description", "")
+
+            # Publish time
+            time_idx = idx % len(publish_times)
+            publish_time = publish_times[time_idx]
+
+            # Resolve symlinks to absolute paths
+            if os.path.islink(video_path):
+                video_path = os.path.realpath(video_path)
+            else:
+                video_path = os.path.abspath(video_path) if video_path else ""
+
+            if os.path.islink(thumb_path):
+                thumb_path = os.path.realpath(thumb_path)
+            else:
+                thumb_path = os.path.abspath(thumb_path) if thumb_path else ""
+
+            if not os.path.exists(thumb_path):
+                thumb_path = ""
+
+            rows.append({
+                "video_path": video_path,
+                "title": title[:100],
+                "description": description[:5000],
+                "thumbnail_path": thumb_path,
+                "publish_date": date_str,
+                "publish_time": publish_time,
+            })
+
+    if not rows:
+        print(f"❌ Không có video cho ngày {upload_dates} trong profile {profile_name}")
+        sys.exit(1)
+
+    # Write Excel
+    try:
+        from openpyxl import Workbook
+    except ImportError:
+        print("❌ Cần cài openpyxl: pip install openpyxl")
+        sys.exit(1)
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Upload List"
+
+    # Header
+    headers = ["video_path", "title", "description", "thumbnail_path", "publish_date", "publish_time"]
+    ws.append(headers)
+
+    # Data
+    for row in rows:
+        ws.append([row[h] for h in headers])
+
+    output_file = args.output
+    wb.save(output_file)
+
+    print(f"✅ Tạo file Excel: {output_file}")
+    print(f"   📅 Ngày: {upload_dates[0]} → {upload_dates[-1]}")
+    print(f"   👤 Profile: {profile_name}")
+    print(f"   🎬 Videos: {len(rows)}")
+    print(f"\n💡 Mở GPM Automate → set Input Excel = {output_file} → Run")
+
+
 def cmd_status(args):
     """Command: Xem tiến độ upload các kênh."""
     import json
@@ -528,6 +673,19 @@ def main():
     )
     p_list.add_argument("--port", type=int, default=19995, help="GPM API port")
     p_list.set_defaults(func=cmd_list_profiles)
+
+    # === Command: export-upload ===
+    p_export = subparsers.add_parser(
+        "export-upload",
+        help="Tạo file Excel upload list cho GPM Automate"
+    )
+    p_export.add_argument("--date", default=None,
+                          help="Ngày bắt đầu (2026-05-30 hoặc 30/05/2026)")
+    p_export.add_argument("--days", type=int, default=1, help="Số ngày (default: 1)")
+    p_export.add_argument("--profile", required=True, help="Tên profile (K1, K2...)")
+    p_export.add_argument("--schedule", default="schedules", help="Thư mục schedule")
+    p_export.add_argument("--output", default="upload_list.xlsx", help="File Excel output")
+    p_export.set_defaults(func=cmd_export_upload)
 
     # === Command: status ===
     p_status = subparsers.add_parser(
