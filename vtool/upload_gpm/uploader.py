@@ -378,13 +378,15 @@ def _upload_single_video(
         
         # Vào YouTube Studio
         driver.get("https://studio.youtube.com")
-        time.sleep(4)
+        time.sleep(6)
         
+        # Đợi page load xong
         wait = WebDriverWait(driver, 30)
         
         # Click Create button
         create_btn = wait.until(EC.element_to_be_clickable(
-            (By.CSS_SELECTOR, "#create-icon, ytcp-button#create-icon, [id='create-icon']")
+            (By.CSS_SELECTOR, "#create-icon, ytcp-button#create-icon, [id='create-icon'], "
+             "ytcp-icon-button#create-icon, .ytcp-button-shape-impl--icon-button")
         ))
         create_btn.click()
         time.sleep(2)
@@ -392,7 +394,8 @@ def _upload_single_video(
         # Click "Upload videos"
         upload_option = wait.until(EC.element_to_be_clickable(
             (By.XPATH,
-             "//tp-yt-paper-item[contains(., 'Upload videos') or contains(., 'Tải video lên')]")
+             "//tp-yt-paper-item[contains(., 'Upload videos') or contains(., 'Tải video lên') "
+             "or contains(., '動画をアップロード')]")
         ))
         upload_option.click()
         time.sleep(3)
