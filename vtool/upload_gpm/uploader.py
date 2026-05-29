@@ -388,21 +388,39 @@ def _upload_single_video(
         wait = WebDriverWait(driver, 30)
         
         # Click Create button
-        create_btn = wait.until(EC.element_to_be_clickable(
-            (By.CSS_SELECTOR, "#create-icon, ytcp-button#create-icon, [id='create-icon'], "
-             "ytcp-icon-button#create-icon, .ytcp-button-shape-impl--icon-button")
-        ))
-        create_btn.click()
+        try:
+            create_btn = wait.until(EC.element_to_be_clickable(
+                (By.CSS_SELECTOR, "#create-icon, ytcp-button#create-icon, [id='create-icon'], "
+                 "ytcp-icon-button#create-icon, .ytcp-button-shape-impl--icon-button")
+            ))
+            create_btn.click()
+        except Exception:
+            # Fallback: tìm theo aria-label hoặc tooltip
+            try:
+                create_btn = driver.find_element(
+                    By.XPATH, "//*[@aria-label='Create' or @aria-label='作成' or @aria-label='Tạo' "
+                    "or @id='create-icon' or contains(@class, 'create')]"
+                )
+                create_btn.click()
+            except Exception:
+                # Fallback 2: navigate trực tiếp tới upload page
+                driver.get("https://studio.youtube.com/channel/UC/videos/upload")
+                time.sleep(3)
+        
         time.sleep(2)
         
-        # Click "Upload videos"
-        upload_option = wait.until(EC.element_to_be_clickable(
-            (By.XPATH,
-             "//tp-yt-paper-item[contains(., 'Upload videos') or contains(., 'Tải video lên') "
-             "or contains(., '動画をアップロード')]")
-        ))
-        upload_option.click()
-        time.sleep(3)
+        # Click "Upload videos" (nếu menu hiện)
+        try:
+            upload_option = WebDriverWait(driver, 5).until(EC.element_to_be_clickable(
+                (By.XPATH,
+                 "//tp-yt-paper-item[contains(., 'Upload videos') or contains(., 'Tải video lên') "
+                 "or contains(., '動画をアップロード')]")
+            ))
+            upload_option.click()
+            time.sleep(3)
+        except Exception:
+            # Có thể đã ở trang upload rồi
+            pass
         
         # Upload file
         file_input = driver.find_element(By.CSS_SELECTOR, "input[type='file']")
