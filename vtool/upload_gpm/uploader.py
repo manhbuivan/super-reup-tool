@@ -300,7 +300,19 @@ def _open_gpm_profile(profile_id: str) -> object:
         if browser_location:
             chrome_options.binary_location = browser_location
         
-        driver = webdriver.Chrome(options=chrome_options)
+        try:
+            driver = webdriver.Chrome(options=chrome_options)
+        except Exception:
+            # Fallback: dùng webdriver-manager tự tải đúng version
+            try:
+                from selenium.webdriver.chrome.service import Service
+                from webdriver_manager.chrome import ChromeDriverManager
+                service = Service(ChromeDriverManager().install())
+                driver = webdriver.Chrome(service=service, options=chrome_options)
+            except ImportError:
+                print("     ⚠️  Cài webdriver-manager: pip install webdriver-manager")
+                return None
+        
         return driver
         
     except Exception as e:
