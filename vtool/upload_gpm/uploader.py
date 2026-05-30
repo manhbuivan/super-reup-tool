@@ -461,22 +461,7 @@ def _upload_single_video(
         time.sleep(2)
                     pass
         
-        # === STEP 8: Set "Not made for kids" ===
-        time.sleep(2)
-        try:
-            not_for_kids = driver.find_element(
-                By.CSS_SELECTOR, "#audience [name='VIDEO_MADE_FOR_KIDS_NOT_MFK'], "
-                "[name='NOT_MADE_FOR_KIDS'], #radioLabel[name='NOT_MADE_FOR_KIDS']"
-            )
-            not_for_kids.click()
-        except Exception:
-            # Thử bằng XPath
-            try:
-                driver.find_element(
-                    By.XPATH, "//*[contains(text(), 'No, it') and contains(text(), 'not made for kids')]"
-                ).click()
-            except Exception:
-                pass
+        # === STEP 8: Not for kids - đã set mặc định trong YouTube, skip ===
         time.sleep(2)
         
         # === STEP 9: Click Next 3 lần ===
