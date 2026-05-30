@@ -235,9 +235,14 @@ def cmd_export_upload(args):
 
     # Collect dates
     upload_dates = []
-    for i in range(args.days):
-        d = start + timedelta(days=i)
-        upload_dates.append(d.strftime("%Y-%m-%d"))
+    if args.all:
+        # Export tất cả ngày trong schedule
+        days_schedule = schedule.get(args.profile, {})
+        upload_dates = sorted(days_schedule.keys())
+    else:
+        for i in range(args.days):
+            d = start + timedelta(days=i)
+            upload_dates.append(d.strftime("%Y-%m-%d"))
 
     # Load config for publish times
     config = {}
@@ -718,6 +723,7 @@ def main():
     p_export.add_argument("--date", default=None,
                           help="Ngày bắt đầu (2026-05-30 hoặc 30/05/2026)")
     p_export.add_argument("--days", type=int, default=1, help="Số ngày (default: 1)")
+    p_export.add_argument("--all", action="store_true", help="Export tất cả ngày")
     p_export.add_argument("--profile", required=True, help="Tên profile (K1, K2...)")
     p_export.add_argument("--schedule", default="schedules", help="Thư mục schedule")
     p_export.add_argument("--output", default="upload_list.xlsx", help="File Excel output")
