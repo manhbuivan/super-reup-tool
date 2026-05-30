@@ -361,7 +361,7 @@ def _upload_single_video(
 ) -> bool:
     """
     Upload 1 video lên YouTube Studio.
-    Nếu visibility == "schedule": set hẹn giờ publish.
+    Dùng JavaScript để set title/desc cho ổn định.
     """
     try:
         stem = Path(video_path).stem
@@ -373,135 +373,161 @@ def _upload_single_video(
             with open(json_path, "r", encoding="utf-8") as f:
                 meta = json.load(f)
         
-        title = meta.get("title", stem)
-        description = meta.get("description", "")
+        title = meta.get("title", stem)[:100]
+        description = meta.get("description", "")[:5000]
         
-        # Thumbnail path
+        # Thumbnail path (resolve symlink)
         thumb_path = os.path.join(day_folder, f"{stem}.jpg")
+        if os.path.islink(thumb_path):
+            thumb_path = os.path.realpath(thumb_path)
+        thumb_path = os.path.abspath(thumb_path)
         has_thumb = os.path.exists(thumb_path)
         
-        # Vào YouTube Studio
-        driver.get("https://studio.youtube.com")
-        time.sleep(6)
+        # Resolve video path (symlink)
+        abs_video_path = video_path
+        if os.path.islink(video_path):
+            abs_video_path = os.path.realpath(video_path)
+        abs_video_path = os.path.abspath(abs_video_path)
         
-        # Đợi page load xong
+        # === STEP 1: Vào YouTube Studio ===
+        driver.get("https://studio.youtube.com")
+        time.sleep(8)
+        
         wait = WebDriverWait(driver, 30)
         
-        # Click Create button
+        # === STEP 2: Click Create button ===
         try:
             create_btn = wait.until(EC.element_to_be_clickable(
-                (By.CSS_SELECTOR, "button[title='Create'], button[aria-label='Create'], "
-                 "ytcp-button-shape button[aria-label='Create']")
+                (By.CSS_SELECTOR, "button[aria-label='Create'], button[title='Create']")
             ))
             create_btn.click()
         except Exception:
-            try:
-                create_btn = driver.find_element(
-                    By.XPATH, "//button[@title='Create' or @aria-label='Create']"
-                )
-                create_btn.click()
-            except Exception:
-                # Fallback: navigate trực tiếp tới upload page
-                driver.get("https://studio.youtube.com/channel/UC/videos/upload")
-                time.sleep(3)
+            create_btn = driver.find_element(
+                By.XPATH, "//button[@title='Create' or @aria-label='Create']"
+            )
+            create_btn.click()
+        time.sleep(3)
         
-        time.sleep(2)
-        
-        # Click "Upload videos" (nếu menu hiện)
+        # === STEP 3: Click "Upload videos" ===
         try:
-            upload_option = WebDriverWait(driver, 5).until(EC.element_to_be_clickable(
+            upload_option = WebDriverWait(driver, 10).until(EC.element_to_be_clickable(
                 (By.XPATH,
                  "//tp-yt-paper-item[contains(., 'Upload videos') or contains(., 'Tải video lên') "
                  "or contains(., '動画をアップロード')]")
             ))
             upload_option.click()
-            time.sleep(3)
         except Exception:
-            pass
+            # Thử click text trực tiếp
+            driver.find_element(By.XPATH, "//*[contains(text(), 'Upload video')]").click()
+        time.sleep(4)
         
-        # Upload file
-        file_input = driver.find_element(By.CSS_SELECTOR, "input[type='file']")
-        file_input.send_keys(os.path.abspath(video_path))
-        time.sleep(8)
-        
-        # Điền title
-        title_input = wait.until(EC.presence_of_element_located(
-            (By.CSS_SELECTOR,
-             "#textbox[aria-label*='title' i], "
-             "#textbox[aria-label*='tiêu đề' i], "
-             "ytcp-social-suggestions-textbox #textbox")
+        # === STEP 4: Upload file ===
+        file_input = wait.until(EC.presence_of_element_located(
+            (By.CSS_SELECTOR, "input[type='file']")
         ))
-        title_input.clear()
-        title_input.send_keys(Keys.CONTROL + "a")
-        time.sleep(0.5)
-        title_input.send_keys(title[:100])
-        time.sleep(1)
+        file_input.send_keys(abs_video_path)
+        time.sleep(12)  # Đợi video upload + process
         
-        # Điền description
-        desc_inputs = driver.find_elements(
-            By.CSS_SELECTOR,
-            "#textbox[aria-label*='description' i], "
-            "#textbox[aria-label*='mô tả' i]"
-        )
-        if desc_inputs and description:
-            desc_inputs[0].click()
-            time.sleep(0.5)
-            desc_inputs[0].send_keys(Keys.CONTROL + "a")
-            desc_inputs[0].send_keys(description[:5000])
-            time.sleep(1)
+        # === STEP 5: Set Title bằng JavaScript ===
+        # Escape title cho JS
+        title_escaped = title.replace("\\", "\\\\").replace("'", "\\'").replace("\n", " ")
+        driver.execute_script(f"""
+            const titleBox = document.querySelector('ytcp-social-suggestions-textbox #textbox, #textbox[aria-label]');
+            if (titleBox) {{
+                titleBox.focus();
+                titleBox.textContent = '';
+                document.execCommand('selectAll');
+                document.execCommand('insertText', false, '{title_escaped}');
+            }}
+        """)
+        time.sleep(3)
         
-        # Upload thumbnail
+        # === STEP 6: Set Description bằng JavaScript ===
+        if description:
+            desc_escaped = description.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n").replace("\r", "")
+            driver.execute_script(f"""
+                const boxes = document.querySelectorAll('#textbox[aria-label]');
+                // Description thường là box thứ 2
+                const descBox = boxes.length > 1 ? boxes[1] : null;
+                if (descBox) {{
+                    descBox.focus();
+                    descBox.click();
+                    document.execCommand('selectAll');
+                    document.execCommand('insertText', false, '{desc_escaped}');
+                }}
+            """)
+        time.sleep(3)
+        
+        # === STEP 7: Upload Thumbnail ===
         if has_thumb:
             try:
-                thumb_input = driver.find_element(
-                    By.CSS_SELECTOR, "input[accept='image/jpeg,image/png']"
+                # Tìm tất cả file input, thumbnail input thường accept image
+                thumb_inputs = driver.find_elements(
+                    By.CSS_SELECTOR, "input[type='file'][accept*='image'], "
+                    "input[type='file'][accept*='jpeg'], "
+                    "input[type='file'][accept*='png']"
                 )
-                thumb_input.send_keys(os.path.abspath(thumb_path))
-                time.sleep(3)
+                if thumb_inputs:
+                    thumb_inputs[0].send_keys(thumb_path)
+                    time.sleep(4)
             except Exception:
                 pass
         
-        # Set "Not made for kids"
+        # === STEP 8: Set "Not made for kids" ===
+        time.sleep(2)
         try:
             not_for_kids = driver.find_element(
-                By.CSS_SELECTOR, "#audience [name='VIDEO_MADE_FOR_KIDS_NOT_MFK']"
+                By.CSS_SELECTOR, "#audience [name='VIDEO_MADE_FOR_KIDS_NOT_MFK'], "
+                "[name='NOT_MADE_FOR_KIDS'], #radioLabel[name='NOT_MADE_FOR_KIDS']"
             )
             not_for_kids.click()
-            time.sleep(1)
         except Exception:
-            pass
+            # Thử bằng XPath
+            try:
+                driver.find_element(
+                    By.XPATH, "//*[contains(text(), 'No, it') and contains(text(), 'not made for kids')]"
+                ).click()
+            except Exception:
+                pass
+        time.sleep(2)
         
-        # Click Next 3 lần (Details → Video elements → Checks → Visibility)
-        for _ in range(3):
-            next_btn = wait.until(EC.element_to_be_clickable(
-                (By.CSS_SELECTOR, "#next-button, ytcp-button#next-button")
-            ))
-            next_btn.click()
-            time.sleep(2)
+        # === STEP 9: Click Next 3 lần ===
+        for i in range(3):
+            time.sleep(3)
+            try:
+                next_btn = wait.until(EC.element_to_be_clickable(
+                    (By.CSS_SELECTOR, "#next-button")
+                ))
+                next_btn.click()
+            except Exception:
+                driver.find_element(By.XPATH, "//button[@id='next-button']").click()
         
-        # === SET VISIBILITY / SCHEDULE ===
+        time.sleep(4)
+        
+        # === STEP 10: Set Schedule hoặc Visibility ===
         if visibility == "schedule" and publish_time and publish_date:
             _set_schedule(driver, wait, publish_date, publish_time)
         else:
-            _set_visibility(driver, wait, visibility)
+            _set_visibility(driver, wait, visibility if visibility != "schedule" else "public")
         
-        time.sleep(2)
+        time.sleep(3)
         
-        # Đợi nút Done active
-        _wait_for_processing(driver, timeout=60)
+        # === STEP 11: Click Done/Publish ===
+        _wait_for_processing(driver, timeout=30)
         
-        # Click Publish/Schedule/Save
-        done_btn = wait.until(EC.element_to_be_clickable(
-            (By.CSS_SELECTOR, "#done-button, ytcp-button#done-button")
-        ))
-        done_btn.click()
-        time.sleep(5)
+        try:
+            done_btn = wait.until(EC.element_to_be_clickable(
+                (By.CSS_SELECTOR, "#done-button")
+            ))
+            done_btn.click()
+        except Exception:
+            driver.find_element(By.XPATH, "//button[@id='done-button']").click()
+        
+        time.sleep(8)
         
         # Đóng dialog nếu có
         try:
-            close_btn = driver.find_element(
-                By.CSS_SELECTOR, "#close-button, ytcp-button#close-button"
-            )
+            close_btn = driver.find_element(By.CSS_SELECTOR, "#close-button")
             close_btn.click()
         except Exception:
             pass
@@ -517,90 +543,82 @@ def _upload_single_video(
 def _set_schedule(driver, wait, publish_date: str, publish_time: str):
     """
     Set schedule (hẹn giờ publish) cho video.
-    
-    YouTube Studio:
-    1. Click radio "Schedule"
-    2. Set date (nếu khác hôm nay)
-    3. Set time
     """
     try:
         # Click "Schedule" radio button
-        schedule_radio = wait.until(EC.element_to_be_clickable(
-            (By.CSS_SELECTOR, "[name='SCHEDULE'], #schedule-radio-button")
-        ))
-        schedule_radio.click()
         time.sleep(2)
+        try:
+            schedule_radio = driver.find_element(
+                By.CSS_SELECTOR, "[name='SCHEDULE']"
+            )
+            schedule_radio.click()
+        except Exception:
+            # Thử XPath
+            driver.find_element(
+                By.XPATH, "//tp-yt-paper-radio-button[@name='SCHEDULE']"
+            ).click()
+        time.sleep(3)
         
         # === SET DATE ===
         today_str = datetime.now().strftime("%Y-%m-%d")
         if publish_date != today_str:
             try:
-                # Click date picker
-                date_picker = driver.find_element(
-                    By.CSS_SELECTOR, 
-                    "#datepicker-trigger, ytcp-date-picker, "
-                    "[class*='datepicker'], [id*='datepicker']"
-                )
-                date_picker.click()
-                time.sleep(1)
-                
                 target_date = datetime.strptime(publish_date, "%Y-%m-%d")
                 day_str = str(target_date.day)
                 
-                # Tìm và click ngày trong calendar
-                day_buttons = driver.find_elements(
-                    By.CSS_SELECTOR, 
-                    ".tp-yt-paper-calendar-day, .calendar-day, "
-                    "[class*='day']:not([class*='disabled'])"
+                # Click date picker
+                date_picker = driver.find_element(
+                    By.CSS_SELECTOR, "#datepicker-trigger, [id*='datepicker']"
                 )
-                for btn in day_buttons:
-                    if btn.text.strip() == day_str and btn.is_displayed():
-                        btn.click()
+                date_picker.click()
+                time.sleep(2)
+                
+                # Tìm và click ngày
+                day_elements = driver.find_elements(
+                    By.CSS_SELECTOR, "td button, .calendar-day, [class*='day'] button"
+                )
+                for el in day_elements:
+                    if el.text.strip() == day_str and el.is_displayed() and el.is_enabled():
+                        el.click()
                         break
-                time.sleep(1)
+                time.sleep(2)
             except Exception:
-                pass  # Giữ ngày mặc định
+                pass
         
         # === SET TIME ===
         try:
-            # Tìm input time
-            time_input = driver.find_element(
-                By.CSS_SELECTOR,
-                "#time-of-day-trigger input, "
-                "input[aria-label*='time' i], "
-                "input[aria-label*='giờ' i], "
-                "#time-of-day-container input, "
-                "[class*='time'] input"
-            )
-            time_input.click()
-            time.sleep(0.5)
-            
-            # Clear và nhập giờ mới
-            time_input.send_keys(Keys.CONTROL + "a")
-            time_input.send_keys(publish_time)
-            time_input.send_keys(Keys.TAB)
+            # Tìm time input/trigger
             time.sleep(1)
-        except Exception:
-            # Fallback: click dropdown chọn giờ
-            try:
-                time_trigger = driver.find_element(
-                    By.CSS_SELECTOR, "#time-of-day-trigger"
-                )
-                time_trigger.click()
-                time.sleep(1)
+            time_elements = driver.find_elements(
+                By.CSS_SELECTOR, "#time-of-day-trigger, [id*='time-of-day']"
+            )
+            if time_elements:
+                time_elements[0].click()
+                time.sleep(2)
                 
-                # Tìm option gần nhất
+                # Tìm option trong dropdown
                 options = driver.find_elements(
-                    By.CSS_SELECTOR,
-                    "tp-yt-paper-item, tp-yt-paper-listbox tp-yt-paper-item"
+                    By.CSS_SELECTOR, "tp-yt-paper-item, [class*='dropdown'] tp-yt-paper-item"
                 )
                 for opt in options:
                     if publish_time in opt.text:
                         opt.click()
                         break
                 time.sleep(1)
-            except Exception:
-                pass
+            else:
+                # Fallback: tìm input trực tiếp
+                time_input = driver.find_element(
+                    By.CSS_SELECTOR, "input[type='text'][aria-label*='time' i], "
+                    "input[aria-label*='Time' i]"
+                )
+                time_input.click()
+                time.sleep(0.5)
+                time_input.send_keys(Keys.CONTROL + "a")
+                time_input.send_keys(publish_time)
+                time_input.send_keys(Keys.TAB)
+                time.sleep(1)
+        except Exception:
+            pass
     
     except Exception as e:
         print(f"     ⚠️  Schedule error: {e}, fallback to public")
