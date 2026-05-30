@@ -543,80 +543,121 @@ def _upload_single_video(
 def _set_schedule(driver, wait, publish_date: str, publish_time: str):
     """
     Set schedule (hẹn giờ publish) cho video.
+    Dựa trên HTML thực tế của YouTube Studio 2026.
     """
     try:
-        # Click "Schedule" radio button
+        # === STEP 1: Click "Schedule" radio button ===
         time.sleep(2)
         try:
+            # Tìm radio button có text "Schedule"
             schedule_radio = driver.find_element(
-                By.CSS_SELECTOR, "[name='SCHEDULE']"
+                By.XPATH, "//tp-yt-paper-radio-button[contains(., 'Schedule')]"
             )
             schedule_radio.click()
         except Exception:
-            # Thử XPath
-            driver.find_element(
-                By.XPATH, "//tp-yt-paper-radio-button[@name='SCHEDULE']"
-            ).click()
+            try:
+                driver.find_element(By.CSS_SELECTOR, "[name='SCHEDULE']").click()
+            except Exception:
+                pass
         time.sleep(3)
         
-        # === SET DATE ===
+        # === STEP 2: Set Date ===
         today_str = datetime.now().strftime("%Y-%m-%d")
         if publish_date != today_str:
             try:
                 target_date = datetime.strptime(publish_date, "%Y-%m-%d")
                 day_str = str(target_date.day)
                 
-                # Click date picker
-                date_picker = driver.find_element(
-                    By.CSS_SELECTOR, "#datepicker-trigger, [id*='datepicker']"
+                # Click vào date input để mở calendar
+                date_input = driver.find_element(
+                    By.CSS_SELECTOR, "#datepicker-trigger input, "
+                    "ytcp-date-picker input, "
+                    ".ytcp-date-picker input"
                 )
-                date_picker.click()
+                date_input.click()
                 time.sleep(2)
                 
-                # Tìm và click ngày
-                day_elements = driver.find_elements(
-                    By.CSS_SELECTOR, "td button, .calendar-day, [class*='day'] button"
+                # Tìm ngày trong calendar và click
+                # Calendar dùng td hoặc div chứa số ngày
+                day_cells = driver.find_elements(
+                    By.CSS_SELECTOR, "tp-yt-paper-calendar td button, "
+                    ".tp-yt-paper-calendar td, "
+                    "[class*='calendar'] td"
                 )
-                for el in day_elements:
-                    if el.text.strip() == day_str and el.is_displayed() and el.is_enabled():
-                        el.click()
+                for cell in day_cells:
+                    if cell.text.strip() == day_str:
+                        cell.click()
                         break
                 time.sleep(2)
             except Exception:
-                pass
+                # Fallback: dùng JS set date input trực tiếp
+                try:
+                    target_date = datetime.strptime(publish_date, "%Y-%m-%d")
+                    # Format: "May 31, 2026" hoặc tương tự
+                    months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                              "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+                    date_str_formatted = f"{months[target_date.month-1]} {target_date.day}, {target_date.year}"
+                    driver.execute_script(f"""
+                        const dateInput = document.querySelector('#datepicker-trigger input, ytcp-date-picker input');
+                        if (dateInput) {{
+                            dateInput.value = '{date_str_formatted}';
+                            dateInput.dispatchEvent(new Event('input', {{bubbles: true}}));
+                            dateInput.dispatchEvent(new Event('change', {{bubbles: true}}));
+                        }}
+                    """)
+                    time.sleep(1)
+                except Exception:
+                    pass
         
-        # === SET TIME ===
+        # === STEP 3: Set Time ===
         try:
-            # Tìm time input/trigger
-            time.sleep(1)
-            time_elements = driver.find_elements(
-                By.CSS_SELECTOR, "#time-of-day-trigger, [id*='time-of-day']"
-            )
-            if time_elements:
-                time_elements[0].click()
-                time.sleep(2)
-                
-                # Tìm option trong dropdown
-                options = driver.find_elements(
-                    By.CSS_SELECTOR, "tp-yt-paper-item, [class*='dropdown'] tp-yt-paper-item"
-                )
-                for opt in options:
-                    if publish_time in opt.text:
-                        opt.click()
-                        break
-                time.sleep(1)
+            # Convert publish_time (24h format "08:00") sang 12h format ("8:00 AM")
+            hour, minute = map(int, publish_time.split(":"))
+            if hour == 0:
+                time_12h = f"12:{minute:02d} AM"
+            elif hour < 12:
+                time_12h = f"{hour}:{minute:02d} AM"
+            elif hour == 12:
+                time_12h = f"12:{minute:02d} PM"
             else:
-                # Fallback: tìm input trực tiếp
-                time_input = driver.find_element(
-                    By.CSS_SELECTOR, "input[type='text'][aria-label*='time' i], "
-                    "input[aria-label*='Time' i]"
-                )
-                time_input.click()
-                time.sleep(0.5)
-                time_input.send_keys(Keys.CONTROL + "a")
-                time_input.send_keys(publish_time)
-                time_input.send_keys(Keys.TAB)
-                time.sleep(1)
+                time_12h = f"{hour-12}:{minute:02d} PM"
+            
+            # Click time dropdown trigger
+            time_trigger = driver.find_element(
+                By.CSS_SELECTOR, "#time-of-day-trigger, "
+                "[class*='time-of-day'] [role='button'], "
+                ".ytcp-time-of-day-picker [role='button']"
+            )
+            time_trigger.click()
+            time.sleep(2)
+            
+            # Tìm option trong dropdown list
+            time_options = driver.find_elements(
+                By.CSS_SELECTOR, "tp-yt-paper-item.ytcp-time-of-day-picker, "
+                "tp-yt-paper-item.style-scope.ytcp-time-of-day-picker, "
+                "tp-yt-paper-listbox tp-yt-paper-item"
+            )
+            
+            found = False
+            for opt in time_options:
+                opt_text = opt.text.strip()
+                if opt_text == time_12h:
+                    opt.click()
+                    found = True
+                    break
+            
+            # Nếu không tìm chính xác, tìm gần nhất
+            if not found:
+                for opt in time_options:
+                    opt_text = opt.text.strip()
+                    # So sánh giờ (bỏ qua phút nếu cần)
+                    if f"{hour}:" in opt_text or time_12h.split(":")[0] in opt_text:
+                        opt.click()
+                        found = True
+                        break
+            
+            time.sleep(2)
+            
         except Exception:
             pass
     
