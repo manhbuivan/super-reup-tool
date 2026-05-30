@@ -347,11 +347,23 @@ def cmd_export_upload(args):
         print("❌ Cần cài openpyxl: pip install openpyxl")
         sys.exit(1)
 
-    # Get GPM profile name from config
-    gpm_profile_name = ""
+    # Get GPM profile name from API
+    gpm_profile_name = profile_name
     profile_cfg = config.get("profiles", {}).get(profile_name, {})
-    if isinstance(profile_cfg, dict):
-        gpm_profile_name = profile_cfg.get("name", profile_name)
+    gpm_id = profile_cfg.get("gpm_id", "") if isinstance(profile_cfg, dict) else ""
+    
+    if gpm_id:
+        try:
+            import requests
+            gpm_port = config.get("gpm_port", 19995)
+            resp = requests.get(f"http://localhost:{gpm_port}/api/v3/profiles", timeout=5)
+            if resp.status_code == 200:
+                for p in resp.json().get("data", []):
+                    if p.get("id") == gpm_id:
+                        gpm_profile_name = p.get("name", profile_name)
+                        break
+        except Exception:
+            pass
 
     wb = Workbook()
     ws = wb.active
