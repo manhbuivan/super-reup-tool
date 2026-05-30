@@ -291,9 +291,18 @@ def cmd_export_upload(args):
                 title = meta.get("title", stem)
                 description = meta.get("description", "")
 
-            # Publish time
+            # Publish time - convert 24h sang 12h cho YouTube
             time_idx = idx % len(publish_times)
-            publish_time = publish_times[time_idx]
+            raw_time = publish_times[time_idx]
+            h, m = map(int, raw_time.split(":"))
+            if h == 0:
+                publish_time = f"12:{m:02d} AM"
+            elif h < 12:
+                publish_time = f"{h}:{m:02d} AM"
+            elif h == 12:
+                publish_time = f"12:{m:02d} PM"
+            else:
+                publish_time = f"{h-12}:{m:02d} PM"
 
             # Resolve symlinks to absolute paths
             if os.path.islink(video_path):
@@ -309,12 +318,21 @@ def cmd_export_upload(args):
             if not os.path.exists(thumb_path):
                 thumb_path = ""
 
+            # Format date cho YouTube: "June 1, 2026"
+            from datetime import datetime as dt2
+            parsed_date = dt2.strptime(date_str, "%Y-%m-%d")
+            # Windows dùng %#d, Unix dùng %-d để bỏ zero-padding
+            try:
+                publish_date_fmt = parsed_date.strftime("%B %#d, %Y")
+            except ValueError:
+                publish_date_fmt = parsed_date.strftime("%B %-d, %Y")
+
             rows.append({
                 "video_path": video_path,
                 "title": title[:100],
                 "description": description[:5000],
                 "thumbnail_path": thumb_path,
-                "publish_date": date_str,
+                "publish_date": publish_date_fmt,
                 "publish_time": publish_time,
             })
 
