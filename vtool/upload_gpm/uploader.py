@@ -390,20 +390,18 @@ def _upload_single_video(
         # Click Create button
         try:
             create_btn = wait.until(EC.element_to_be_clickable(
-                (By.CSS_SELECTOR, "#create-icon, ytcp-button#create-icon, [id='create-icon'], "
-                 "ytcp-icon-button#create-icon, .ytcp-button-shape-impl--icon-button")
+                (By.CSS_SELECTOR, "button[title='Create'], button[aria-label='Create'], "
+                 "ytcp-button-shape button[aria-label='Create']")
             ))
             create_btn.click()
         except Exception:
-            # Fallback: tìm theo aria-label hoặc tooltip
             try:
                 create_btn = driver.find_element(
-                    By.XPATH, "//*[@aria-label='Create' or @aria-label='作成' or @aria-label='Tạo' "
-                    "or @id='create-icon' or contains(@class, 'create')]"
+                    By.XPATH, "//button[@title='Create' or @aria-label='Create']"
                 )
                 create_btn.click()
             except Exception:
-                # Fallback 2: navigate trực tiếp tới upload page
+                # Fallback: navigate trực tiếp tới upload page
                 driver.get("https://studio.youtube.com/channel/UC/videos/upload")
                 time.sleep(3)
         
@@ -419,7 +417,6 @@ def _upload_single_video(
             upload_option.click()
             time.sleep(3)
         except Exception:
-            # Có thể đã ở trang upload rồi
             pass
         
         # Upload file
