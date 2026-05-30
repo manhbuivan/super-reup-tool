@@ -456,10 +456,7 @@ def _upload_single_video(
         
         # === STEP 7: Upload Thumbnail ===
         # TẠM SKIP - fix sau
-        # if has_thumb:
-        #     ...
         time.sleep(2)
-                    pass
         
         # === STEP 8: Not for kids - đã set mặc định trong YouTube, skip ===
         time.sleep(2)
