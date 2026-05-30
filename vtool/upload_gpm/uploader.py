@@ -389,9 +389,8 @@ def _upload_single_video(
             abs_video_path = os.path.realpath(video_path)
         abs_video_path = os.path.abspath(abs_video_path)
         
-        # === STEP 1: Vào YouTube Studio ===
-        driver.get("https://studio.youtube.com")
-        time.sleep(8)
+        # === STEP 1: YouTube Studio đã mở sẵn (homepage của profile) ===
+        time.sleep(5)
         
         wait = WebDriverWait(driver, 30)
         
