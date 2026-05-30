@@ -432,42 +432,71 @@ def _upload_single_video(
         # Nên không cần thay đổi gì
         time.sleep(3)
         
-        # === STEP 6: Set Description bằng JavaScript ===
+        # === STEP 6: Set Description bằng typing ===
         if description:
-            desc_escaped = description.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n").replace("\r", "")
-            driver.execute_script(f"""
-                const boxes = document.querySelectorAll('#textbox[aria-label]');
-                // Description thường là box thứ 2
-                const descBox = boxes.length > 1 ? boxes[1] : null;
-                if (descBox) {{
-                    descBox.focus();
-                    descBox.click();
-                    document.execCommand('selectAll');
-                    document.execCommand('insertText', false, '{desc_escaped}');
-                }}
-            """)
-        time.sleep(3)
+            try:
+                # Tìm ô description (textbox thứ 2, sau title)
+                textboxes = driver.find_elements(By.CSS_SELECTOR, "#textbox")
+                desc_box = None
+                for tb in textboxes:
+                    label = tb.get_attribute("aria-label") or ""
+                    if "description" in label.lower() or "tell viewers" in label.lower():
+                        desc_box = tb
+                        break
+                
+                if not desc_box and len(textboxes) > 1:
+                    desc_box = textboxes[1]
+                
+                if desc_box:
+                    desc_box.click()
+                    time.sleep(1)
+                    desc_box.send_keys(description[:5000])
+                    time.sleep(2)
+            except Exception:
+                pass
+        time.sleep(2)
         
         # === STEP 7: Upload Thumbnail ===
         if has_thumb:
             try:
-                # YouTube Studio dùng file input ẩn trong phần thumbnail
-                # Tìm input file trong khu vực thumbnail editor
-                thumb_input = driver.find_element(
-                    By.CSS_SELECTOR, ".ytcp-thumbnails-compact-editor-uploader input[type='file'], "
-                    "ytcp-thumbnails-compact-editor-uploader input[type='file'], "
-                    "#file-loader input[type='file']"
+                # Click nút "Upload file" trong phần Thumbnail
+                upload_thumb_btn = driver.find_element(
+                    By.CSS_SELECTOR, "ytcp-thumbnails-compact-editor-uploader button, "
+                    "button.ytcp-thumbnails-compact-editor-uploader-select-button"
                 )
-                thumb_input.send_keys(thumb_path)
-                time.sleep(5)
+                upload_thumb_btn.click()
+                time.sleep(2)
+                
+                # Sau khi click, file input sẽ xuất hiện
+                # Dùng JS để tìm và set file
+                file_inputs = driver.find_elements(By.CSS_SELECTOR, "input[type='file']")
+                # File input cuối cùng thường là thumbnail (vừa được tạo)
+                if file_inputs:
+                    file_inputs[-1].send_keys(thumb_path)
+                    time.sleep(5)
             except Exception:
-                # Fallback: tìm tất cả file input, cái thứ 2 thường là thumbnail
                 try:
+                    # Fallback: dùng JS inject file input
+                    driver.execute_script("""
+                        const thumbSection = document.querySelector('ytcp-thumbnails-compact-editor-uploader');
+                        if (thumbSection) {
+                            let input = thumbSection.querySelector('input[type="file"]');
+                            if (!input) {
+                                input = document.createElement('input');
+                                input.type = 'file';
+                                input.style.display = 'none';
+                                thumbSection.appendChild(input);
+                            }
+                            input.style.display = 'block';
+                        }
+                    """)
+                    time.sleep(1)
                     file_inputs = driver.find_elements(By.CSS_SELECTOR, "input[type='file']")
                     if len(file_inputs) > 1:
-                        file_inputs[1].send_keys(thumb_path)
+                        file_inputs[-1].send_keys(thumb_path)
                         time.sleep(5)
                 except Exception:
+                    pass
                     pass
         
         # === STEP 8: Set "Not made for kids" ===
@@ -540,50 +569,60 @@ def _upload_single_video(
 def _set_schedule(driver, wait, publish_date: str, publish_time: str):
     """
     Set schedule (hẹn giờ publish) cho video.
-    Dựa trên HTML thực tế YouTube Studio 2026.
+    YouTube Studio 2026: Schedule là section có mũi tên expand (▼).
     """
     try:
-        # === STEP 1: Click "Schedule" checkbox/radio ===
+        # === STEP 1: Click expand "Schedule" section ===
         time.sleep(2)
         
-        # Tìm và click Schedule option
         found_schedule = False
         
-        # Thử 1: Click text "Schedule"
+        # Tìm section "Schedule" và click expand
         try:
-            schedule_el = driver.find_element(
-                By.XPATH, "//div[contains(@class, 'visibility')]//tp-yt-paper-radio-button[contains(., 'Schedule')]"
+            # Tìm div/section chứa text "Schedule" với mũi tên expand
+            schedule_section = driver.find_element(
+                By.XPATH, "//div[contains(text(), 'Schedule') and contains(text(), 'Select a date')]/.."
             )
-            schedule_el.click()
+            schedule_section.click()
             found_schedule = True
         except Exception:
             pass
         
-        # Thử 2: Click bằng CSS
         if not found_schedule:
             try:
-                schedule_el = driver.find_element(
-                    By.CSS_SELECTOR, "#schedule-radio-button, [name='SCHEDULE']"
+                # Thử click bằng text "Schedule" trong khu vực visibility
+                schedule_headers = driver.find_elements(
+                    By.XPATH, "//*[contains(text(), 'Schedule')]"
                 )
-                schedule_el.click()
-                found_schedule = True
-            except Exception:
-                pass
-        
-        # Thử 3: Click text trực tiếp
-        if not found_schedule:
-            try:
-                elements = driver.find_elements(By.XPATH, "//*[text()='Schedule']")
-                for el in elements:
-                    if el.is_displayed():
-                        el.click()
+                for sh in schedule_headers:
+                    if sh.is_displayed() and "Select a date" in sh.text:
+                        sh.click()
+                        found_schedule = True
+                        break
+                    elif sh.is_displayed() and sh.text.strip() == "Schedule":
+                        sh.click()
                         found_schedule = True
                         break
             except Exception:
                 pass
         
         if not found_schedule:
-            print("     ⚠️  Không tìm thấy nút Schedule")
+            try:
+                # Click mũi tên expand (icon dropdown)
+                expand_icons = driver.find_elements(
+                    By.CSS_SELECTOR, "ytcp-icon-button[icon='icons:expand-more'], "
+                    "[class*='expand'], tp-yt-iron-icon[icon='expand-more']"
+                )
+                for icon in expand_icons:
+                    if icon.is_displayed():
+                        icon.click()
+                        found_schedule = True
+                        break
+            except Exception:
+                pass
+        
+        if not found_schedule:
+            print("     ⚠️  Không tìm thấy Schedule section")
             _set_visibility(driver, wait, "public")
             return
         
@@ -598,22 +637,17 @@ def _set_schedule(driver, wait, publish_date: str, publish_time: str):
                 
                 # Click vào ô ngày để mở calendar
                 date_inputs = driver.find_elements(
-                    By.CSS_SELECTOR, "input.tp-yt-paper-input, "
-                    "#datepicker-trigger input, "
-                    "ytcp-date-picker input"
+                    By.CSS_SELECTOR, "input.tp-yt-paper-input"
                 )
                 for di in date_inputs:
-                    if di.is_displayed() and ("May" in di.get_attribute("value") or 
-                                              "Jun" in di.get_attribute("value") or
-                                              "2026" in di.get_attribute("value")):
+                    val = di.get_attribute("value") or ""
+                    if di.is_displayed() and ("May" in val or "Jun" in val or "Jul" in val or "2026" in val):
                         di.click()
                         break
                 time.sleep(2)
                 
                 # Click ngày trong calendar
-                day_cells = driver.find_elements(
-                    By.CSS_SELECTOR, "table td"
-                )
+                day_cells = driver.find_elements(By.CSS_SELECTOR, "table td")
                 for cell in day_cells:
                     if cell.text.strip() == day_str and cell.is_displayed():
                         cell.click()
@@ -624,7 +658,7 @@ def _set_schedule(driver, wait, publish_date: str, publish_time: str):
         
         # === STEP 3: Set Time ===
         try:
-            # Convert 24h → 12h format
+            # Convert 24h → 12h
             hour, minute = map(int, publish_time.split(":"))
             if hour == 0:
                 time_12h = f"12:{minute:02d} AM"
@@ -635,28 +669,23 @@ def _set_schedule(driver, wait, publish_date: str, publish_time: str):
             else:
                 time_12h = f"{hour-12}:{minute:02d} PM"
             
-            # Click time dropdown
-            time_triggers = driver.find_elements(
-                By.CSS_SELECTOR, "#time-of-day-trigger, "
-                "[class*='time-of-day'] [role='button'], "
-                "[class*='time-of-day']"
+            # Click time input/dropdown
+            time_inputs = driver.find_elements(
+                By.CSS_SELECTOR, "input.tp-yt-paper-input"
             )
-            for tt in time_triggers:
-                if tt.is_displayed():
-                    tt.click()
+            for ti in time_inputs:
+                val = ti.get_attribute("value") or ""
+                if ti.is_displayed() and ("AM" in val or "PM" in val):
+                    ti.click()
                     break
             time.sleep(2)
             
-            # Scroll và tìm option trong dropdown
-            time_options = driver.find_elements(
-                By.CSS_SELECTOR, "tp-yt-paper-item"
-            )
-            
+            # Tìm option trong dropdown
+            time_options = driver.find_elements(By.CSS_SELECTOR, "tp-yt-paper-item")
             for opt in time_options:
                 if opt.is_displayed() and time_12h in opt.text:
                     opt.click()
                     break
-            
             time.sleep(2)
             
         except Exception:
