@@ -433,70 +433,32 @@ def _upload_single_video(
         time.sleep(3)
         
         # === STEP 6: Set Description bằng typing ===
-        if description:
-            try:
-                # Tìm ô description (textbox thứ 2, sau title)
-                textboxes = driver.find_elements(By.CSS_SELECTOR, "#textbox")
-                desc_box = None
-                for tb in textboxes:
-                    label = tb.get_attribute("aria-label") or ""
-                    if "description" in label.lower() or "tell viewers" in label.lower():
-                        desc_box = tb
-                        break
-                
-                if not desc_box and len(textboxes) > 1:
-                    desc_box = textboxes[1]
-                
-                if desc_box:
-                    desc_box.click()
-                    time.sleep(1)
-                    desc_box.send_keys(description[:5000])
-                    time.sleep(2)
-            except Exception:
-                pass
+        # TẠM SKIP - fix sau
+        # if description:
+        #     try:
+        #         textboxes = driver.find_elements(By.CSS_SELECTOR, "#textbox")
+        #         desc_box = None
+        #         for tb in textboxes:
+        #             label = tb.get_attribute("aria-label") or ""
+        #             if "description" in label.lower() or "tell viewers" in label.lower():
+        #                 desc_box = tb
+        #                 break
+        #         if not desc_box and len(textboxes) > 1:
+        #             desc_box = textboxes[1]
+        #         if desc_box:
+        #             desc_box.click()
+        #             time.sleep(1)
+        #             desc_box.send_keys(description[:5000])
+        #             time.sleep(2)
+        #     except Exception:
+        #         pass
         time.sleep(2)
         
         # === STEP 7: Upload Thumbnail ===
-        if has_thumb:
-            try:
-                # Click nút "Upload file" trong phần Thumbnail
-                upload_thumb_btn = driver.find_element(
-                    By.CSS_SELECTOR, "ytcp-thumbnails-compact-editor-uploader button, "
-                    "button.ytcp-thumbnails-compact-editor-uploader-select-button"
-                )
-                upload_thumb_btn.click()
-                time.sleep(2)
-                
-                # Sau khi click, file input sẽ xuất hiện
-                # Dùng JS để tìm và set file
-                file_inputs = driver.find_elements(By.CSS_SELECTOR, "input[type='file']")
-                # File input cuối cùng thường là thumbnail (vừa được tạo)
-                if file_inputs:
-                    file_inputs[-1].send_keys(thumb_path)
-                    time.sleep(5)
-            except Exception:
-                try:
-                    # Fallback: dùng JS inject file input
-                    driver.execute_script("""
-                        const thumbSection = document.querySelector('ytcp-thumbnails-compact-editor-uploader');
-                        if (thumbSection) {
-                            let input = thumbSection.querySelector('input[type="file"]');
-                            if (!input) {
-                                input = document.createElement('input');
-                                input.type = 'file';
-                                input.style.display = 'none';
-                                thumbSection.appendChild(input);
-                            }
-                            input.style.display = 'block';
-                        }
-                    """)
-                    time.sleep(1)
-                    file_inputs = driver.find_elements(By.CSS_SELECTOR, "input[type='file']")
-                    if len(file_inputs) > 1:
-                        file_inputs[-1].send_keys(thumb_path)
-                        time.sleep(5)
-                except Exception:
-                    pass
+        # TẠM SKIP - fix sau
+        # if has_thumb:
+        #     ...
+        time.sleep(2)
                     pass
         
         # === STEP 8: Set "Not made for kids" ===
