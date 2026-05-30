@@ -347,17 +347,23 @@ def cmd_export_upload(args):
         print("❌ Cần cài openpyxl: pip install openpyxl")
         sys.exit(1)
 
+    # Get GPM profile name from config
+    gpm_profile_name = ""
+    profile_cfg = config.get("profiles", {}).get(profile_name, {})
+    if isinstance(profile_cfg, dict):
+        gpm_profile_name = profile_cfg.get("name", profile_name)
+
     wb = Workbook()
     ws = wb.active
     ws.title = "Upload List"
 
     # Header
-    headers = ["video_path", "title", "description", "thumbnail_path", "publish_date", "publish_time"]
+    headers = ["profile_name", "video_path", "title", "description", "thumbnail_path", "publish_date", "publish_time"]
     ws.append(headers)
 
     # Data
     for row in rows:
-        ws.append([row[h] for h in headers])
+        ws.append([gpm_profile_name] + [row[h] for h in headers[1:]])
 
     output_file = args.output
     wb.save(output_file)
