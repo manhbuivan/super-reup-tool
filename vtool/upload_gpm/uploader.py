@@ -428,18 +428,9 @@ def _upload_single_video(
         file_input.send_keys(abs_video_path)
         time.sleep(12)  # Đợi video upload + process
         
-        # === STEP 5: Set Title bằng JavaScript ===
-        # Escape title cho JS
-        title_escaped = title.replace("\\", "\\\\").replace("'", "\\'").replace("\n", " ")
-        driver.execute_script(f"""
-            const titleBox = document.querySelector('ytcp-social-suggestions-textbox #textbox, #textbox[aria-label]');
-            if (titleBox) {{
-                titleBox.focus();
-                titleBox.textContent = '';
-                document.execCommand('selectAll');
-                document.execCommand('insertText', false, '{title_escaped}');
-            }}
-        """)
+        # === STEP 5: Title - YouTube tự lấy từ tên file, không cần set ===
+        # YouTube Studio tự điền title = tên file video khi upload
+        # Nên không cần thay đổi gì
         time.sleep(3)
         
         # === STEP 6: Set Description bằng JavaScript ===
