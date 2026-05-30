@@ -224,6 +224,18 @@ def cmd_export_upload(args):
 
     schedule = data["schedule"]
 
+    # Load config
+    config = {}
+    if os.path.exists("config.json"):
+        with open("config.json", "r", encoding="utf-8") as f:
+            config = json.load(f)
+
+    # Xác định profiles cần export
+    if args.profile:
+        profiles_to_export = [args.profile]
+    else:
+        profiles_to_export = list(schedule.keys())
+
     # Parse date
     if args.date:
         if "/" in args.date:
@@ -233,116 +245,120 @@ def cmd_export_upload(args):
     else:
         start = datetime.now()
 
-    # Collect dates
-    upload_dates = []
-    if args.all:
-        # Export tất cả ngày trong schedule
-        days_schedule = schedule.get(args.profile, {})
-        upload_dates = sorted(days_schedule.keys())
-    else:
-        for i in range(args.days):
-            d = start + timedelta(days=i)
-            upload_dates.append(d.strftime("%Y-%m-%d"))
+    # Get GPM profile names from API
+    gpm_names = {}
+    try:
+        import requests
+        gpm_port = config.get("gpm_port", 19995)
+        resp = requests.get(f"http://localhost:{gpm_port}/api/v3/profiles", timeout=5)
+        if resp.status_code == 200:
+            for p in resp.json().get("data", []):
+                gpm_names[p.get("id", "")] = p.get("name", "")
+    except Exception:
+        pass
 
-    # Load config for publish times
-    config = {}
-    if os.path.exists("config.json"):
-        with open("config.json", "r", encoding="utf-8") as f:
-            config = json.load(f)
-
-    # Filter profile
-    profile_name = args.profile
-    if profile_name not in schedule:
-        print(f"❌ Profile '{profile_name}' không có trong schedule")
-        print(f"   Profiles có: {list(schedule.keys())}")
-        sys.exit(1)
-
-    # Get publish times for this profile
-    profile_config = config.get("profiles", {}).get(profile_name, {})
-    publish_times = profile_config.get("publish_times",
-                                       ["08:00", "10:00", "12:00", "14:00", "16:00", "18:00", "20:00"])
-
-    # Build rows
+    # Build rows cho tất cả profiles
     rows = []
-    days_schedule = schedule[profile_name]
     schedule_dir = args.schedule
 
-    for date_str in upload_dates:
-        if date_str not in days_schedule:
+    for profile_name in profiles_to_export:
+        if profile_name not in schedule:
+            print(f"⚠️  Profile '{profile_name}' không có trong schedule, skip")
             continue
 
-        videos = days_schedule[date_str]
-        # Find day folder
-        profile_dir = os.path.join(schedule_dir, profile_name)
-        day_folder = None
-        if os.path.exists(profile_dir):
-            for folder in sorted(Path(profile_dir).iterdir()):
-                if folder.is_dir() and date_str in folder.name:
-                    day_folder = str(folder)
-                    break
+        days_schedule = schedule[profile_name]
 
-        for idx, video_name in enumerate(videos):
-            stem = Path(video_name).stem
-            video_path = os.path.join(day_folder, video_name) if day_folder else ""
-            thumb_path = os.path.join(day_folder, f"{stem}.jpg") if day_folder else ""
-            json_path = os.path.join(day_folder, f"{stem}.json") if day_folder else ""
+        # Collect dates cho profile này
+        if args.all:
+            upload_dates = sorted(days_schedule.keys())
+        else:
+            upload_dates = []
+            for i in range(args.days):
+                d = start + timedelta(days=i)
+                upload_dates.append(d.strftime("%Y-%m-%d"))
 
-            # Read metadata
-            title = stem
-            description = ""
-            if json_path and os.path.exists(json_path):
-                with open(json_path, "r", encoding="utf-8") as f:
-                    meta = json.load(f)
-                title = meta.get("title", stem)
-                description = meta.get("description", "")
+        # Get publish times
+        profile_config = config.get("profiles", {}).get(profile_name, {})
+        publish_times = profile_config.get("publish_times",
+                                           ["08:00", "10:00", "12:00", "14:00", "16:00", "18:00", "20:00"])
 
-            # Publish time - convert 24h sang 12h cho YouTube
-            time_idx = idx % len(publish_times)
-            raw_time = publish_times[time_idx]
-            h, m = map(int, raw_time.split(":"))
-            if h == 0:
-                publish_time = f"12:{m:02d} AM"
-            elif h < 12:
-                publish_time = f"{h}:{m:02d} AM"
-            elif h == 12:
-                publish_time = f"12:{m:02d} PM"
-            else:
-                publish_time = f"{h-12}:{m:02d} PM"
+        # Get GPM profile name
+        gpm_id = profile_config.get("gpm_id", "") if isinstance(profile_config, dict) else ""
+        gpm_profile_name = gpm_names.get(gpm_id, profile_name)
 
-            # Resolve symlinks to absolute paths
-            if os.path.islink(video_path):
-                video_path = os.path.realpath(video_path)
-            else:
-                video_path = os.path.abspath(video_path) if video_path else ""
+        for date_str in upload_dates:
+            if date_str not in days_schedule:
+                continue
 
-            if os.path.islink(thumb_path):
-                thumb_path = os.path.realpath(thumb_path)
-            else:
-                thumb_path = os.path.abspath(thumb_path) if thumb_path else ""
+            videos = days_schedule[date_str]
+            profile_dir = os.path.join(schedule_dir, profile_name)
+            day_folder = None
+            if os.path.exists(profile_dir):
+                for folder in sorted(Path(profile_dir).iterdir()):
+                    if folder.is_dir() and date_str in folder.name:
+                        day_folder = str(folder)
+                        break
 
-            if not os.path.exists(thumb_path):
-                thumb_path = ""
+            for idx, video_name in enumerate(videos):
+                stem = Path(video_name).stem
+                video_path = os.path.join(day_folder, video_name) if day_folder else ""
+                thumb_path = os.path.join(day_folder, f"{stem}.jpg") if day_folder else ""
+                json_path = os.path.join(day_folder, f"{stem}.json") if day_folder else ""
 
-            # Format date cho YouTube: "June 1, 2026"
-            from datetime import datetime as dt2
-            parsed_date = dt2.strptime(date_str, "%Y-%m-%d")
-            # Windows dùng %#d, Unix dùng %-d để bỏ zero-padding
-            try:
-                publish_date_fmt = parsed_date.strftime("%B %#d, %Y")
-            except ValueError:
-                publish_date_fmt = parsed_date.strftime("%B %-d, %Y")
+                title = stem
+                description = ""
+                if json_path and os.path.exists(json_path):
+                    with open(json_path, "r", encoding="utf-8") as f:
+                        meta = json.load(f)
+                    title = meta.get("title", stem)
+                    description = meta.get("description", "")
 
-            rows.append({
-                "video_path": video_path,
-                "title": title[:100],
-                "description": description[:5000],
-                "thumbnail_path": thumb_path,
-                "publish_date": publish_date_fmt,
-                "publish_time": publish_time,
-            })
+                # Convert 24h → 12h
+                time_idx = idx % len(publish_times)
+                raw_time = publish_times[time_idx]
+                h, m = map(int, raw_time.split(":"))
+                if h == 0:
+                    publish_time = f"12:{m:02d} AM"
+                elif h < 12:
+                    publish_time = f"{h}:{m:02d} AM"
+                elif h == 12:
+                    publish_time = f"12:{m:02d} PM"
+                else:
+                    publish_time = f"{h-12}:{m:02d} PM"
+
+                # Resolve paths
+                if os.path.islink(video_path):
+                    video_path = os.path.realpath(video_path)
+                else:
+                    video_path = os.path.abspath(video_path) if video_path else ""
+
+                if os.path.islink(thumb_path):
+                    thumb_path = os.path.realpath(thumb_path)
+                else:
+                    thumb_path = os.path.abspath(thumb_path) if thumb_path else ""
+
+                if not os.path.exists(thumb_path):
+                    thumb_path = ""
+
+                # Format date: "June 1, 2026"
+                parsed_date = datetime.strptime(date_str, "%Y-%m-%d")
+                try:
+                    publish_date_fmt = parsed_date.strftime("%B %#d, %Y")
+                except ValueError:
+                    publish_date_fmt = parsed_date.strftime("%B %-d, %Y")
+
+                rows.append({
+                    "profile_name": gpm_profile_name,
+                    "video_path": video_path,
+                    "title": title[:100],
+                    "description": description[:5000],
+                    "thumbnail_path": thumb_path,
+                    "publish_date": publish_date_fmt,
+                    "publish_time": publish_time,
+                })
 
     if not rows:
-        print(f"❌ Không có video cho ngày {upload_dates} trong profile {profile_name}")
+        print(f"❌ Không có video để export")
         sys.exit(1)
 
     # Write Excel
@@ -352,42 +368,21 @@ def cmd_export_upload(args):
         print("❌ Cần cài openpyxl: pip install openpyxl")
         sys.exit(1)
 
-    # Get GPM profile name from API
-    gpm_profile_name = profile_name
-    profile_cfg = config.get("profiles", {}).get(profile_name, {})
-    gpm_id = profile_cfg.get("gpm_id", "") if isinstance(profile_cfg, dict) else ""
-    
-    if gpm_id:
-        try:
-            import requests
-            gpm_port = config.get("gpm_port", 19995)
-            resp = requests.get(f"http://localhost:{gpm_port}/api/v3/profiles", timeout=5)
-            if resp.status_code == 200:
-                for p in resp.json().get("data", []):
-                    if p.get("id") == gpm_id:
-                        gpm_profile_name = p.get("name", profile_name)
-                        break
-        except Exception:
-            pass
-
     wb = Workbook()
     ws = wb.active
     ws.title = "Upload List"
 
-    # Header
     headers = ["profile_name", "video_path", "title", "description", "thumbnail_path", "publish_date", "publish_time"]
     ws.append(headers)
 
-    # Data
     for row in rows:
-        ws.append([gpm_profile_name] + [row[h] for h in headers[1:]])
+        ws.append([row[h] for h in headers])
 
     output_file = args.output
     wb.save(output_file)
 
     print(f"✅ Tạo file Excel: {output_file}")
-    print(f"   📅 Ngày: {upload_dates[0]} → {upload_dates[-1]}")
-    print(f"   👤 Profile: {profile_name}")
+    print(f"   👤 Profiles: {profiles_to_export}")
     print(f"   🎬 Videos: {len(rows)}")
     print(f"\n💡 Mở GPM Automate → set Input Excel = {output_file} → Run")
 
@@ -724,7 +719,8 @@ def main():
                           help="Ngày bắt đầu (2026-05-30 hoặc 30/05/2026)")
     p_export.add_argument("--days", type=int, default=1, help="Số ngày (default: 1)")
     p_export.add_argument("--all", action="store_true", help="Export tất cả ngày")
-    p_export.add_argument("--profile", required=True, help="Tên profile (K1, K2...)")
+    p_export.add_argument("--profile", default=None,
+                          help="Tên profile (K1, K2...) hoặc bỏ trống = tất cả kênh")
     p_export.add_argument("--schedule", default="schedules", help="Thư mục schedule")
     p_export.add_argument("--output", default="upload_list.xlsx", help="File Excel output")
     p_export.set_defaults(func=cmd_export_upload)
