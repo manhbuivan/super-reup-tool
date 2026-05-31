@@ -378,7 +378,15 @@ def cmd_export_upload(args):
     for row in rows:
         ws.append([row[h] for h in headers])
 
+    # Tên file tự động theo ngày nếu dùng default
     output_file = args.output
+    if output_file == "upload_list.xlsx":
+        if args.all:
+            output_file = "upload_all.xlsx"
+        else:
+            date_str_file = start.strftime("%d-%m-%Y")
+            output_file = f"upload_all_{date_str_file}.xlsx"
+    
     wb.save(output_file)
 
     print(f"✅ Tạo file Excel: {output_file}")
