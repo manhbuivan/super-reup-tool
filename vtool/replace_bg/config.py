@@ -22,3 +22,4 @@ class ReplaceBgConfig:
     detect_sample_times: list = field(default_factory=lambda: [1.0, 3.0, 5.0])
     limit: int = None  # Giới hạn số video xử lý
     resolution: int = None  # Output resolution (720, 1080, None=giữ nguyên)
+    overlay_opacity: float = 0  # Độ mờ đen phủ lên text bar (0=không, 0.5=mờ 50%, 0.7=mờ 70%)
