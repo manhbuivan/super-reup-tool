@@ -102,17 +102,17 @@ def process_single_video(args: tuple) -> dict:
             target_h = config.resolution
             target_w = int(width * target_h / height)
             target_w = target_w if target_w % 2 == 0 else target_w + 1
-            scale_output = f"[composited]scale={target_w}:{target_h}[out]"
             
             if opacity > 0:
+                # Dùng drawbox để vẽ hộp đen mờ lên phần text bar
+                alpha = opacity
                 filter_complex = (
                     f"[1:v]scale={width}:{height}:force_original_aspect_ratio=increase,"
                     f"crop={width}:{height}[bg];"
-                    f"[0:v]crop={width}:{text_height}:0:{height - text_height}[text];"
-                    f"color=black:{width}x{text_height}[dark];"
-                    f"[text][dark]blend=all_mode=normal:all_opacity={opacity}[darktext];"
+                    f"[0:v]crop={width}:{text_height}:0:{height - text_height},"
+                    f"drawbox=x=0:y=0:w={width}:h={text_height}:color=black@{alpha}:t=fill[darktext];"
                     f"[bg][darktext]overlay=0:{height - text_height}[composited];"
-                    f"{scale_output}"
+                    f"[composited]scale={target_w}:{target_h}[out]"
                 )
             else:
                 filter_complex = (
@@ -120,16 +120,16 @@ def process_single_video(args: tuple) -> dict:
                     f"crop={width}:{height}[bg];"
                     f"[0:v]crop={width}:{text_height}:0:{height - text_height}[text];"
                     f"[bg][text]overlay=0:{height - text_height}[composited];"
-                    f"{scale_output}"
+                    f"[composited]scale={target_w}:{target_h}[out]"
                 )
         else:
             if opacity > 0:
+                alpha = opacity
                 filter_complex = (
                     f"[1:v]scale={width}:{height}:force_original_aspect_ratio=increase,"
                     f"crop={width}:{height}[bg];"
-                    f"[0:v]crop={width}:{text_height}:0:{height - text_height}[text];"
-                    f"color=black:{width}x{text_height}[dark];"
-                    f"[text][dark]blend=all_mode=normal:all_opacity={opacity}[darktext];"
+                    f"[0:v]crop={width}:{text_height}:0:{height - text_height},"
+                    f"drawbox=x=0:y=0:w={width}:h={text_height}:color=black@{alpha}:t=fill[darktext];"
                     f"[bg][darktext]overlay=0:{height - text_height}[out]"
                 )
             else:
