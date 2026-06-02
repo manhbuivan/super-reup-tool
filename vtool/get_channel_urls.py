@@ -1,6 +1,7 @@
 """
 Lấy danh sách video URLs từ YouTube channel.
-Không dùng yt-dlp, dùng YouTube page scraping.
+Dùng scrapetube (lấy được TẤT CẢ video, không giới hạn 30).
+Fallback: scraping HTML (chỉ lấy được ~30).
 """
 
 import re
@@ -10,16 +11,32 @@ import requests
 
 def get_channel_video_urls(channel_url: str, limit: int = None) -> list:
     """
-    Lấy video URLs từ channel YouTube bằng scraping.
-    
-    Args:
-        channel_url: URL channel (vd: https://youtube.com/@ChannelName)
-        limit: Giới hạn số video
-    
-    Returns:
-        List URLs
+    Lấy tất cả video URLs từ channel YouTube.
     """
-    # Đảm bảo URL trỏ tới /videos
+    # Thử dùng scrapetube trước (lấy được tất cả)
+    try:
+        import scrapetube
+        
+        videos = scrapetube.get_channel(channel_url=channel_url, limit=limit)
+        urls = []
+        for video in videos:
+            video_id = video.get("videoId", "")
+            if video_id:
+                urls.append(f"https://www.youtube.com/watch?v={video_id}")
+        
+        return urls
+    except ImportError:
+        print("⚠️  scrapetube chưa cài, dùng fallback (chỉ lấy ~30 video)")
+        print("   Cài: pip install scrapetube")
+    except Exception as e:
+        print(f"⚠️  scrapetube lỗi: {e}, dùng fallback")
+
+    # Fallback: scraping HTML (chỉ ~30 video)
+    return _scrape_html_fallback(channel_url, limit)
+
+
+def _scrape_html_fallback(channel_url: str, limit: int = None) -> list:
+    """Fallback: lấy video IDs từ HTML (chỉ ~30)."""
     if "/videos" not in channel_url:
         channel_url = channel_url.rstrip("/") + "/videos"
 
@@ -35,10 +52,8 @@ def get_channel_video_urls(channel_url: str, limit: int = None) -> list:
         print(f"❌ Không truy cập được channel: {e}")
         return []
 
-    # Tìm tất cả video IDs trong page source
     video_ids = re.findall(r'"videoId":"([a-zA-Z0-9_-]{11})"', resp.text)
 
-    # Loại bỏ trùng lặp, giữ thứ tự
     seen = set()
     unique_ids = []
     for vid in video_ids:
@@ -49,8 +64,7 @@ def get_channel_video_urls(channel_url: str, limit: int = None) -> list:
     if limit:
         unique_ids = unique_ids[:limit]
 
-    urls = [f"https://www.youtube.com/watch?v={vid}" for vid in unique_ids]
-    return urls
+    return [f"https://www.youtube.com/watch?v={vid}" for vid in unique_ids]
 
 
 def save_urls(urls: list, output_file: str = "urls.txt"):

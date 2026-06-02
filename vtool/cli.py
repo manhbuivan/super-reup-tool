@@ -53,17 +53,42 @@ def cmd_replace_bg(args):
 
 def cmd_get_urls(args):
     """Command: Lấy URL video từ channel YouTube."""
-    from vtool.get_channel_urls import get_channel_video_urls, save_urls
+    try:
+        import scrapetube
 
-    print(f"🔍 Đang lấy danh sách video từ: {args.channel}")
-    urls = get_channel_video_urls(args.channel, limit=args.limit)
-
-    if not urls:
-        print("❌ Không lấy được URL nào")
-        sys.exit(1)
-
-    save_urls(urls, args.output)
-    print(f"✅ Lấy được {len(urls)} URL → lưu vào {args.output}")
+        print(f"🔍 Đang lấy danh sách video từ: {args.channel}")
+        
+        videos = scrapetube.get_channel(channel_url=args.channel, limit=args.limit)
+        
+        urls = []
+        for video in videos:
+            video_id = video.get("videoId", "")
+            if video_id:
+                urls.append(f"https://www.youtube.com/watch?v={video_id}")
+        
+        if not urls:
+            print("❌ Không lấy được URL nào")
+            sys.exit(1)
+        
+        with open(args.output, "w", encoding="utf-8") as f:
+            for url in urls:
+                f.write(url + "\n")
+        
+        print(f"✅ Lấy được {len(urls)} URL → lưu vào {args.output}")
+    
+    except ImportError:
+        # Fallback: dùng scraping đơn giản
+        from vtool.get_channel_urls import get_channel_video_urls, save_urls
+        
+        print(f"🔍 Đang lấy danh sách video từ: {args.channel}")
+        urls = get_channel_video_urls(args.channel, limit=args.limit)
+        
+        if not urls:
+            print("❌ Không lấy được URL nào")
+            sys.exit(1)
+        
+        save_urls(urls, args.output)
+        print(f"✅ Lấy được {len(urls)} URL → lưu vào {args.output}")
 
 
 def cmd_download_yt(args):
