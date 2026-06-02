@@ -24,12 +24,13 @@ def get_channel_video_urls(channel_url: str, limit: int = None) -> list:
             if video_id:
                 urls.append(f"https://www.youtube.com/watch?v={video_id}")
         
-        return urls
+        if urls:
+            return urls
+        # Nếu scrapetube trả rỗng → dùng fallback
     except ImportError:
-        print("⚠️  scrapetube chưa cài, dùng fallback (chỉ lấy ~30 video)")
-        print("   Cài: pip install scrapetube")
-    except Exception as e:
-        print(f"⚠️  scrapetube lỗi: {e}, dùng fallback")
+        pass
+    except Exception:
+        pass
 
     # Fallback: scraping HTML (chỉ ~30 video)
     return _scrape_html_fallback(channel_url, limit)
