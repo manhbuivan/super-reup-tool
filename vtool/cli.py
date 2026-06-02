@@ -53,13 +53,17 @@ def cmd_replace_bg(args):
 
 def cmd_get_urls(args):
     """Command: Lấy URL video từ channel YouTube."""
-    from vtool.download_yt import get_channel_urls
+    from vtool.get_channel_urls import get_channel_video_urls, save_urls
 
-    get_channel_urls(
-        channel_url=args.channel,
-        limit=args.limit,
-        output_file=args.output,
-    )
+    print(f"🔍 Đang lấy danh sách video từ: {args.channel}")
+    urls = get_channel_video_urls(args.channel, limit=args.limit)
+
+    if not urls:
+        print("❌ Không lấy được URL nào")
+        sys.exit(1)
+
+    save_urls(urls, args.output)
+    print(f"✅ Lấy được {len(urls)} URL → lưu vào {args.output}")
 
 
 def cmd_download_yt(args):
