@@ -135,6 +135,26 @@ def cmd_replace_subtitle(args):
     )
 
 
+def cmd_download_subtitle(args):
+    """Command: Tải subtitle từ YouTube."""
+    from vtool.download_subtitle import download_subtitles
+
+    if args.url:
+        urls = [args.url]
+    elif args.list:
+        with open(args.list, "r", encoding="utf-8") as f:
+            urls = [line.strip() for line in f if line.strip()]
+    else:
+        print("❌ Cần --url hoặc --list")
+        sys.exit(1)
+
+    if args.limit:
+        urls = urls[:args.limit]
+
+    languages = [l.strip() for l in args.lang.split(",")]
+    download_subtitles(urls, output_dir=args.output, languages=languages)
+
+
 def cmd_distribute(args):
     """Command: Phân phối video vào folder theo ngày."""
     from vtool.distribute import distribute_videos
@@ -676,6 +696,18 @@ def main():
         "replace-subtitle",
         help="Tạo video mới: background + subtitle text (render lại từ .srt)"
     )
+
+    # === Command: download-subtitle ===
+    p_dlsub = subparsers.add_parser(
+        "download-subtitle",
+        help="Tải subtitle (.srt) từ YouTube (không cần yt-dlp)"
+    )
+    p_dlsub.add_argument("--url", help="URL 1 video")
+    p_dlsub.add_argument("--list", help="File chứa danh sách URL")
+    p_dlsub.add_argument("--output", default="input_videos", help="Thư mục output")
+    p_dlsub.add_argument("--lang", default="ja,en,vi", help="Ngôn ngữ ưu tiên (default: ja,en,vi)")
+    p_dlsub.add_argument("--limit", type=int, default=None, help="Giới hạn số video")
+    p_dlsub.set_defaults(func=cmd_download_subtitle)
     p_sub.add_argument("--input", default="input_videos", help="Thư mục video input (cần có .srt)")
     p_sub.add_argument("--backgrounds", default="backgrounds", help="Thư mục backgrounds")
     p_sub.add_argument("--output", default="output_videos", help="Thư mục output")
