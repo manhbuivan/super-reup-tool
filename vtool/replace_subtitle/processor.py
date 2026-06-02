@@ -21,20 +21,20 @@ from vtool.core.ffmpeg import (
 def _find_srt(input_dir: str, video_name: str) -> str:
     """Tìm file .srt tương ứng với video."""
     stem = Path(video_name).stem
-    # Tìm file .srt có cùng tên hoặc gần giống
-    patterns = [
-        os.path.join(input_dir, f"{stem}.srt"),
-        os.path.join(input_dir, f"{stem}.ja.srt"),
-        os.path.join(input_dir, f"{stem}.en.srt"),
-        os.path.join(input_dir, f"{stem}.vi.srt"),
-    ]
-    for p in patterns:
-        if os.path.exists(p):
-            return p
-    # Tìm wildcard
-    matches = glob.glob(os.path.join(input_dir, f"{stem}*.srt"))
-    if matches:
-        return matches[0]
+    # Tìm tất cả .srt trong folder
+    all_srt = glob.glob(os.path.join(input_dir, "*.srt"))
+    
+    # Tìm file có tên bắt đầu giống stem
+    for srt in all_srt:
+        srt_name = Path(srt).stem
+        # So sánh: stem video có chứa trong tên srt hoặc ngược lại
+        if stem in srt_name or srt_name.replace(".ja", "").replace(".en", "").replace(".vi", "") == stem:
+            return srt
+    
+    # Nếu chỉ có 1 file srt và 1 video → match luôn
+    if len(all_srt) == 1:
+        return all_srt[0]
+    
     return ""
 
 
