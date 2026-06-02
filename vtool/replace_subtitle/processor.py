@@ -77,7 +77,7 @@ def process_single_subtitle(args: tuple) -> dict:
         subtitle_style = (
             "FontSize=28,FontName=Arial,PrimaryColour=&H00FFFFFF,"
             "OutlineColour=&H00000000,Outline=2,Shadow=1,"
-            "BackColour=&H80000000,BorderStyle=4,MarginV=40"
+            "BackColour=&H80000000,BorderStyle=4,MarginV=20"
         )
 
         filter_complex = (
