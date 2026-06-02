@@ -79,7 +79,7 @@ def cmd_download_yt(args):
     if args.limit:
         urls = urls[:args.limit]
 
-    download_videos(urls, output_dir=args.output, quality=args.quality)
+    download_videos(urls, output_dir=args.output, quality=args.quality, subtitle=args.subtitle)
 
 
 def cmd_get_twitch_urls(args):
@@ -115,6 +115,23 @@ def cmd_download_twitch(args):
         output_dir=args.output,
         quality=args.quality,
         split_hours=args.split,
+    )
+
+
+def cmd_replace_subtitle(args):
+    """Command: Tạo video mới: background + subtitle render."""
+    from vtool.replace_subtitle import batch_process_subtitle
+
+    batch_process_subtitle(
+        input_dir=args.input,
+        background_dir=args.backgrounds,
+        output_dir=args.output,
+        max_workers=args.workers,
+        use_gpu=args.gpu,
+        crf=args.crf,
+        preset=args.preset,
+        resolution=args.resolution,
+        limit=args.limit,
     )
 
 
@@ -596,6 +613,7 @@ def main():
     p_download.add_argument("--quality", default="best", choices=["best", "1080", "720"],
                             help="Chất lượng video (default: best)")
     p_download.add_argument("--limit", type=int, default=None, help="Giới hạn số video tải")
+    p_download.add_argument("--subtitle", action="store_true", help="Tải subtitle (.srt)")
     p_download.set_defaults(func=cmd_download_yt)
 
     # === Command: get-twitch-urls ===
@@ -652,6 +670,22 @@ def main():
     p_replace.add_argument("--mode", default="overlay", choices=["overlay", "lumakey"],
                            help="Mode: overlay (default) hoac lumakey (giu text trang, xoa nen)")
     p_replace.set_defaults(func=cmd_replace_bg)
+
+    # === Command: replace-subtitle ===
+    p_sub = subparsers.add_parser(
+        "replace-subtitle",
+        help="Tạo video mới: background + subtitle text (render lại từ .srt)"
+    )
+    p_sub.add_argument("--input", default="input_videos", help="Thư mục video input (cần có .srt)")
+    p_sub.add_argument("--backgrounds", default="backgrounds", help="Thư mục backgrounds")
+    p_sub.add_argument("--output", default="output_videos", help="Thư mục output")
+    p_sub.add_argument("--workers", type=int, default=2, help="Số worker (default: 2)")
+    p_sub.add_argument("--gpu", action="store_true", help="Dùng GPU NVIDIA")
+    p_sub.add_argument("--crf", type=int, default=23, help="CRF (default: 23)")
+    p_sub.add_argument("--preset", default="fast", help="FFmpeg preset (default: fast)")
+    p_sub.add_argument("--resolution", type=int, default=None, choices=[720, 1080], help="Scale output")
+    p_sub.add_argument("--limit", type=int, default=None, help="Giới hạn số video")
+    p_sub.set_defaults(func=cmd_replace_subtitle)
 
     # === Command: distribute ===
     p_dist = subparsers.add_parser(

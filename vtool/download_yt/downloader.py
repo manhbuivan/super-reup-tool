@@ -51,7 +51,7 @@ def get_channel_urls(channel_url: str, limit: int = None, output_file: str = "ur
     return urls
 
 
-def download_videos(urls: list, output_dir: str = "input_videos", quality: str = "best") -> list:
+def download_videos(urls: list, output_dir: str = "input_videos", quality: str = "best", subtitle: bool = False) -> list:
     """
     Tải video + metadata + thumbnail từ danh sách URL.
     
@@ -84,7 +84,7 @@ def download_videos(urls: list, output_dir: str = "input_videos", quality: str =
     for i, url in enumerate(urls, 1):
         print(f"\n  [{i}/{total}] Downloading: {url}")
         
-        result = _download_single(url, output_dir, quality)
+        result = _download_single(url, output_dir, quality, subtitle)
         results.append(result)
         
         if result["status"] == "success":
@@ -101,7 +101,7 @@ def download_videos(urls: list, output_dir: str = "input_videos", quality: str =
     return results
 
 
-def _download_single(url: str, output_dir: str, quality: str) -> dict:
+def _download_single(url: str, output_dir: str, quality: str, subtitle: bool = False) -> dict:
     """Tải 1 video + metadata + thumbnail."""
     
     result = {"url": url, "status": "success", "title": "", "error": None}
@@ -165,6 +165,19 @@ def _download_single(url: str, output_dir: str, quality: str) -> dict:
             "--no-playlist",
             url
         ]
+        
+        # Tải subtitle nếu bật
+        if subtitle:
+            sub_cmd = [
+                "yt-dlp",
+                "--write-subs", "--write-auto-subs",
+                "--sub-lang", "ja,en,vi",
+                "--sub-format", "srt",
+                "--skip-download",
+                "-o", os.path.join(output_dir, f"{title}"),
+                url
+            ]
+            subprocess.run(sub_cmd, capture_output=True, text=True, timeout=60)
         
         dl_result = subprocess.run(dl_cmd, capture_output=True, text=True, timeout=1800)
         
