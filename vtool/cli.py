@@ -33,6 +33,7 @@ def cmd_replace_bg(args):
         limit=args.limit,
         resolution=args.resolution,
         overlay_opacity=args.overlay_opacity,
+        mode=args.mode,
     )
 
     # Validate directories
@@ -648,6 +649,8 @@ def main():
                            help="Scale output (720 hoặc 1080, default: giữ nguyên)")
     p_replace.add_argument("--overlay-opacity", type=float, default=0,
                            help="Phu den mo len text bar (0=khong, 0.5=mo 50 phan tram, 0.7=mo 70 phan tram)")
+    p_replace.add_argument("--mode", default="overlay", choices=["overlay", "lumakey"],
+                           help="Mode: overlay (default) hoac lumakey (giu text trang, xoa nen)")
     p_replace.set_defaults(func=cmd_replace_bg)
 
     # === Command: distribute ===

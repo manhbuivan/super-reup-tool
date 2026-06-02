@@ -98,7 +98,27 @@ def process_single_video(args: tuple) -> dict:
         # Nếu có overlay_opacity: thêm lớp đen mờ lên text bar
         opacity = config.overlay_opacity if hasattr(config, 'overlay_opacity') and config.overlay_opacity else 0
 
-        if config.resolution:
+        # Mode: lumakey = giữ text trắng, xoá nền tối
+        if config.mode == "lumakey":
+            if config.resolution:
+                target_h = config.resolution
+                target_w = int(width * target_h / height)
+                target_w = target_w if target_w % 2 == 0 else target_w + 1
+                filter_complex = (
+                    f"[1:v]scale={width}:{height}:force_original_aspect_ratio=increase,"
+                    f"crop={width}:{height}[bg];"
+                    f"[0:v]lumakey=threshold=0.7:tolerance=0.2:softness=0.1[fg];"
+                    f"[bg][fg]overlay=0:0[composited];"
+                    f"[composited]scale={target_w}:{target_h}[out]"
+                )
+            else:
+                filter_complex = (
+                    f"[1:v]scale={width}:{height}:force_original_aspect_ratio=increase,"
+                    f"crop={width}:{height}[bg];"
+                    f"[0:v]lumakey=threshold=0.7:tolerance=0.2:softness=0.1[fg];"
+                    f"[bg][fg]overlay=0:0[out]"
+                )
+        elif config.resolution:
             target_h = config.resolution
             target_w = int(width * target_h / height)
             target_w = target_w if target_w % 2 == 0 else target_w + 1
