@@ -97,7 +97,7 @@ def process_single_subtitle(args: tuple) -> dict:
 
         # Banner mode: drawbox đen mờ phía dưới → burn subtitle lên trên
         if sub_style == "banner":
-            banner_height = int(height * 0.20)
+            banner_height = int(height * 0.25)
             banner_y = height - banner_height
             filter_complex = (
                 f"[1:v]scale={width}:{height}:force_original_aspect_ratio=increase,"
@@ -118,7 +118,7 @@ def process_single_subtitle(args: tuple) -> dict:
             target_w = int(width * target_h / height)
             target_w = target_w if target_w % 2 == 0 else target_w + 1
             if sub_style == "banner":
-                banner_height = int(height * 0.20)
+                banner_height = int(height * 0.25)
                 banner_y = height - banner_height
                 filter_complex = (
                     f"[1:v]scale={width}:{height}:force_original_aspect_ratio=increase,"
