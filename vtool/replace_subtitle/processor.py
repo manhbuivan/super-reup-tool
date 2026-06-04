@@ -42,9 +42,8 @@ def _get_subtitle_style(style: str, width: int, height: int) -> str:
     """Trả về subtitle style string cho FFmpeg."""
     if style == "banner":
         # Kiểu 2: text trắng trên nền đen (banner sẽ do filter tạo riêng)
-        # Font size lớn, phù hợp với banner 20% height
-        banner_height = int(height * 0.20)
-        font_size = max(28, int(banner_height * 0.38))
+        # Font size tính theo video height: ~6% cho 720p=43, 1080p=65
+        font_size = max(36, int(height * 0.06))
         return (
             f"FontSize={font_size},FontName=Arial Bold,PrimaryColour=&H00FFFFFF,"
             "OutlineColour=&H00000000,Outline=1,Shadow=0,"
@@ -108,8 +107,7 @@ def process_single_subtitle(args: tuple) -> dict:
                 f"[1:v]scale={width}:{height}:force_original_aspect_ratio=increase,"
                 f"crop={width}:{height}[bg];"
                 f"color=black@0.7:s={width}x{banner_height}:d={duration}[banner];"
-                f"[banner]subtitles='{srt_escaped}':force_style='{subtitle_style}'"
-                f":original_size={width}x{banner_height}[texted];"
+                f"[banner]subtitles='{srt_escaped}':force_style='{subtitle_style}'[texted];"
                 f"[bg][texted]overlay=0:{bg_area_height}:format=auto[out]"
             )
         else:
@@ -132,8 +130,7 @@ def process_single_subtitle(args: tuple) -> dict:
                     f"[1:v]scale={width}:{height}:force_original_aspect_ratio=increase,"
                     f"crop={width}:{height}[bg];"
                     f"color=black@0.7:s={width}x{banner_height}:d={duration}[banner];"
-                    f"[banner]subtitles='{srt_escaped}':force_style='{subtitle_style}'"
-                    f":original_size={width}x{banner_height}[texted];"
+                    f"[banner]subtitles='{srt_escaped}':force_style='{subtitle_style}'[texted];"
                     f"[bg][texted]overlay=0:{bg_area_height}:format=auto[composited];"
                     f"[composited]scale={target_w}:{target_h}[out]"
                 )
