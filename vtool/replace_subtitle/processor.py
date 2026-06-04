@@ -41,14 +41,13 @@ def _find_srt(input_dir: str, video_name: str) -> str:
 def _get_subtitle_style(style: str, width: int, height: int) -> str:
     """Trả về subtitle style string cho FFmpeg."""
     if style == "banner":
-        # Kiểu 2: nền đen full width, text to, sát mép dưới
-        # FontSize tự scale theo chiều cao video (~5% height)
+        # Kiểu 2: nền đen full width (drawbox), text trắng to, sát mép dưới
         font_size = max(24, int(height * 0.05))
         return (
             f"FontSize={font_size},FontName=Arial,PrimaryColour=&H00FFFFFF,"
-            "OutlineColour=&H00000000,Outline=0,Shadow=0,"
-            "BackColour=&HFF000000,BorderStyle=4,"
-            f"MarginV=0,MarginL=10,MarginR=10,WrapStyle=2"
+            "OutlineColour=&H00000000,Outline=1,Shadow=0,"
+            "BackColour=&H00000000,BorderStyle=1,"
+            f"MarginV=15,MarginL=20,MarginR=20"
         )
     else:
         # Kiểu 1 (default): text trắng viền đen, nền mờ nhỏ
@@ -97,23 +96,46 @@ def process_single_subtitle(args: tuple) -> dict:
         sub_style = config.get("sub_style", "default")
         subtitle_style = _get_subtitle_style(sub_style, width, height)
 
-        filter_complex = (
-            f"[1:v]scale={width}:{height}:force_original_aspect_ratio=increase,"
-            f"crop={width}:{height}[bg];"
-            f"[bg]subtitles='{srt_escaped}':force_style='{subtitle_style}'[out]"
-        )
+        # Banner mode: vẽ dải đen full width phía dưới trước, rồi burn subtitle lên
+        if sub_style == "banner":
+            # Dải đen chiếm ~20% chiều cao video, opacity 80%
+            banner_height = int(height * 0.20)
+            banner_y = height - banner_height
+            filter_complex = (
+                f"[1:v]scale={width}:{height}:force_original_aspect_ratio=increase,"
+                f"crop={width}:{height},"
+                f"drawbox=x=0:y={banner_y}:w={width}:h={banner_height}:color=black@0.8:t=fill[bg];"
+                f"[bg]subtitles='{srt_escaped}':force_style='{subtitle_style}'[out]"
+            )
+        else:
+            filter_complex = (
+                f"[1:v]scale={width}:{height}:force_original_aspect_ratio=increase,"
+                f"crop={width}:{height}[bg];"
+                f"[bg]subtitles='{srt_escaped}':force_style='{subtitle_style}'[out]"
+            )
 
         # Resolution scale
         if config.get("resolution"):
             target_h = config["resolution"]
             target_w = int(width * target_h / height)
             target_w = target_w if target_w % 2 == 0 else target_w + 1
-            filter_complex = (
-                f"[1:v]scale={width}:{height}:force_original_aspect_ratio=increase,"
-                f"crop={width}:{height}[bg];"
-                f"[bg]subtitles='{srt_escaped}':force_style='{subtitle_style}'[sub];"
-                f"[sub]scale={target_w}:{target_h}[out]"
-            )
+            if sub_style == "banner":
+                banner_height = int(height * 0.20)
+                banner_y = height - banner_height
+                filter_complex = (
+                    f"[1:v]scale={width}:{height}:force_original_aspect_ratio=increase,"
+                    f"crop={width}:{height},"
+                    f"drawbox=x=0:y={banner_y}:w={width}:h={banner_height}:color=black@0.8:t=fill[bg];"
+                    f"[bg]subtitles='{srt_escaped}':force_style='{subtitle_style}'[sub];"
+                    f"[sub]scale={target_w}:{target_h}[out]"
+                )
+            else:
+                filter_complex = (
+                    f"[1:v]scale={width}:{height}:force_original_aspect_ratio=increase,"
+                    f"crop={width}:{height}[bg];"
+                    f"[bg]subtitles='{srt_escaped}':force_style='{subtitle_style}'[sub];"
+                    f"[sub]scale={target_w}:{target_h}[out]"
+                )
 
         # Build command
         if is_video_bg:
