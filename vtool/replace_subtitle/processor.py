@@ -47,8 +47,8 @@ def _get_subtitle_style(style: str, width: int, height: int) -> str:
         return (
             f"FontSize={font_size},FontName=Arial,PrimaryColour=&H00FFFFFF,"
             "OutlineColour=&H00000000,Outline=0,Shadow=0,"
-            "BackColour=&HCC000000,BorderStyle=4,"
-            f"MarginV=0,MarginL=0,MarginR=0,WrapStyle=2"
+            "BackColour=&HFF000000,BorderStyle=4,"
+            f"MarginV=0,MarginL=10,MarginR=10,WrapStyle=2"
         )
     else:
         # Kiểu 1 (default): text trắng viền đen, nền mờ nhỏ
