@@ -41,14 +41,14 @@ def _find_srt(input_dir: str, video_name: str) -> str:
 def _get_subtitle_style(style: str, width: int, height: int) -> str:
     """Trả về subtitle style string cho FFmpeg."""
     if style == "banner":
-        # Kiểu 2: text trắng trên nền đen (banner sẽ do filter tạo riêng)
-        # Font size tính theo video height: ~6% cho 720p=43, 1080p=65
-        font_size = max(36, int(height * 0.06))
+        # Kiểu 2: text trắng trên nền đen (banner do filter tạo riêng)
+        # Dùng FontSize=28 (giống default) nhưng render trong khung banner nhỏ
+        # → cần original_size = video gốc để FFmpeg scale font to lên cho đúng
         return (
-            f"FontSize={font_size},FontName=Arial Bold,PrimaryColour=&H00FFFFFF,"
-            "OutlineColour=&H00000000,Outline=1,Shadow=0,"
+            "FontSize=28,FontName=Arial Bold,PrimaryColour=&H00FFFFFF,"
+            "OutlineColour=&H00000000,Outline=2,Shadow=0,"
             "BackColour=&H00000000,BorderStyle=1,"
-            f"Alignment=2,MarginV=10,MarginL=20,MarginR=20"
+            "Alignment=2,MarginV=10,MarginL=20,MarginR=20"
         )
     else:
         # Kiểu 1 (default): text trắng viền đen, nền mờ nhỏ
@@ -107,7 +107,8 @@ def process_single_subtitle(args: tuple) -> dict:
                 f"[1:v]scale={width}:{height}:force_original_aspect_ratio=increase,"
                 f"crop={width}:{height}[bg];"
                 f"color=black@0.7:s={width}x{banner_height}:d={duration}[banner];"
-                f"[banner]subtitles='{srt_escaped}':force_style='{subtitle_style}'[texted];"
+                f"[banner]subtitles='{srt_escaped}':force_style='{subtitle_style}'"
+                f":original_size={width}x{height}[texted];"
                 f"[bg][texted]overlay=0:{bg_area_height}:format=auto[out]"
             )
         else:
@@ -130,7 +131,8 @@ def process_single_subtitle(args: tuple) -> dict:
                     f"[1:v]scale={width}:{height}:force_original_aspect_ratio=increase,"
                     f"crop={width}:{height}[bg];"
                     f"color=black@0.7:s={width}x{banner_height}:d={duration}[banner];"
-                    f"[banner]subtitles='{srt_escaped}':force_style='{subtitle_style}'[texted];"
+                    f"[banner]subtitles='{srt_escaped}':force_style='{subtitle_style}'"
+                    f":original_size={width}x{height}[texted];"
                     f"[bg][texted]overlay=0:{bg_area_height}:format=auto[composited];"
                     f"[composited]scale={target_w}:{target_h}[out]"
                 )
