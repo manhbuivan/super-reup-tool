@@ -55,7 +55,7 @@ def _get_subtitle_style(style: str, width: int, height: int) -> str:
         return (
             "FontSize=28,FontName=Arial,PrimaryColour=&H00FFFFFF,"
             "OutlineColour=&H00000000,Outline=2,Shadow=1,"
-            "BackColour=&H80000000,BorderStyle=4,MarginV=20"
+            "BackColour=&H80000000,BorderStyle=4,MarginV=10"
         )
 
 
