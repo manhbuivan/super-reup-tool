@@ -41,14 +41,16 @@ def _find_srt(input_dir: str, video_name: str) -> str:
 def _get_subtitle_style(style: str, width: int, height: int) -> str:
     """Trả về subtitle style string cho FFmpeg."""
     if style == "banner":
-        # Kiểu 2: nền đen full width (drawbox vẽ trước), text trắng nằm trong banner
-        # FontSize ~3.5% height → 2-3 dòng vừa trong banner 20%
-        font_size = max(22, int(height * 0.035))
+        # Kiểu 2: text trắng trên nền đen (banner sẽ do filter tạo riêng)
+        # Font tính theo banner_height (20% video height) để luôn vừa
+        banner_height = int(height * 0.20)
+        # Font size = 30% banner height → 2 dòng vừa, 3 dòng hơi chật nhưng ok
+        font_size = max(20, int(banner_height * 0.28))
         return (
             f"FontSize={font_size},FontName=Arial Bold,PrimaryColour=&H00FFFFFF,"
             "OutlineColour=&H00000000,Outline=1,Shadow=0,"
             "BackColour=&H00000000,BorderStyle=1,"
-            f"Alignment=2,MarginV=25,MarginL=20,MarginR=20"
+            f"Alignment=2,MarginV=10,MarginL=20,MarginR=20"
         )
     else:
         # Kiểu 1 (default): text trắng viền đen, nền mờ nhỏ
@@ -97,16 +99,18 @@ def process_single_subtitle(args: tuple) -> dict:
         sub_style = config.get("sub_style", "default")
         subtitle_style = _get_subtitle_style(sub_style, width, height)
 
-        # Banner mode: vẽ dải đen full width phía dưới trước, rồi burn subtitle lên
+        # Banner mode: tạo khung đen riêng → burn subtitle vào khung đen → overlay lên bg
         if sub_style == "banner":
-            # Dải đen chiếm ~20% chiều cao video, opacity 80%
             banner_height = int(height * 0.20)
-            banner_y = height - banner_height
+            # Đảm bảo chẵn
+            banner_height = banner_height if banner_height % 2 == 0 else banner_height + 1
+            bg_area_height = height - banner_height
             filter_complex = (
                 f"[1:v]scale={width}:{height}:force_original_aspect_ratio=increase,"
-                f"crop={width}:{height},"
-                f"drawbox=x=0:y={banner_y}:w={width}:h={banner_height}:color=black@0.8:t=fill[bg];"
-                f"[bg]subtitles='{srt_escaped}':force_style='{subtitle_style}'[out]"
+                f"crop={width}:{height}[bg];"
+                f"color=black:s={width}x{banner_height}:d={duration}[banner];"
+                f"[banner]subtitles='{srt_escaped}':force_style='{subtitle_style}'[texted];"
+                f"[bg][texted]overlay=0:{bg_area_height}[out]"
             )
         else:
             filter_complex = (
@@ -122,13 +126,15 @@ def process_single_subtitle(args: tuple) -> dict:
             target_w = target_w if target_w % 2 == 0 else target_w + 1
             if sub_style == "banner":
                 banner_height = int(height * 0.20)
-                banner_y = height - banner_height
+                banner_height = banner_height if banner_height % 2 == 0 else banner_height + 1
+                bg_area_height = height - banner_height
                 filter_complex = (
                     f"[1:v]scale={width}:{height}:force_original_aspect_ratio=increase,"
-                    f"crop={width}:{height},"
-                    f"drawbox=x=0:y={banner_y}:w={width}:h={banner_height}:color=black@0.8:t=fill[bg];"
-                    f"[bg]subtitles='{srt_escaped}':force_style='{subtitle_style}'[sub];"
-                    f"[sub]scale={target_w}:{target_h}[out]"
+                    f"crop={width}:{height}[bg];"
+                    f"color=black:s={width}x{banner_height}:d={duration}[banner];"
+                    f"[banner]subtitles='{srt_escaped}':force_style='{subtitle_style}'[texted];"
+                    f"[bg][texted]overlay=0:{bg_area_height}[composited];"
+                    f"[composited]scale={target_w}:{target_h}[out]"
                 )
             else:
                 filter_complex = (
