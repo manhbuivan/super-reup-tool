@@ -38,6 +38,27 @@ def _find_srt(input_dir: str, video_name: str) -> str:
     return ""
 
 
+def _get_subtitle_style(style: str, width: int, height: int) -> str:
+    """Trả về subtitle style string cho FFmpeg."""
+    if style == "banner":
+        # Kiểu 2: nền đen full width, text to, sát mép dưới
+        # FontSize tự scale theo chiều cao video (~5% height)
+        font_size = max(24, int(height * 0.05))
+        return (
+            f"FontSize={font_size},FontName=Arial,PrimaryColour=&H00FFFFFF,"
+            "OutlineColour=&H00000000,Outline=0,Shadow=0,"
+            "BackColour=&HCC000000,BorderStyle=4,"
+            f"MarginV=0,MarginL=0,MarginR=0,WrapStyle=2"
+        )
+    else:
+        # Kiểu 1 (default): text trắng viền đen, nền mờ nhỏ
+        return (
+            "FontSize=28,FontName=Arial,PrimaryColour=&H00FFFFFF,"
+            "OutlineColour=&H00000000,Outline=2,Shadow=1,"
+            "BackColour=&H80000000,BorderStyle=4,MarginV=20"
+        )
+
+
 def process_single_subtitle(args: tuple) -> dict:
     """
     Tạo 1 video: background + subtitle từ .srt.
@@ -72,13 +93,9 @@ def process_single_subtitle(args: tuple) -> dict:
         # Escape srt path cho FFmpeg (Windows cần escape backslash và colon)
         srt_escaped = srt_path.replace("\\", "/").replace(":", "\\\\:")
 
-        # Filter: scale background + burn subtitles
-        # Style: text trắng, viền đen, nền mờ, font lớn
-        subtitle_style = (
-            "FontSize=28,FontName=Arial,PrimaryColour=&H00FFFFFF,"
-            "OutlineColour=&H00000000,Outline=2,Shadow=1,"
-            "BackColour=&H80000000,BorderStyle=4,MarginV=20"
-        )
+        # Subtitle style
+        sub_style = config.get("sub_style", "default")
+        subtitle_style = _get_subtitle_style(sub_style, width, height)
 
         filter_complex = (
             f"[1:v]scale={width}:{height}:force_original_aspect_ratio=increase,"
@@ -155,6 +172,7 @@ def batch_process_subtitle(
     preset: str = "fast",
     resolution: int = None,
     limit: int = None,
+    sub_style: str = "default",
 ):
     """Xử lý hàng loạt: background + subtitle."""
     import shutil
@@ -191,6 +209,7 @@ def batch_process_subtitle(
         "crf": crf,
         "preset": preset,
         "resolution": resolution,
+        "sub_style": sub_style,
     }
 
     # Chuẩn bị tasks

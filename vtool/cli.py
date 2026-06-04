@@ -136,6 +136,7 @@ def cmd_replace_subtitle(args):
         preset=args.preset,
         resolution=args.resolution,
         limit=args.limit,
+        sub_style=args.sub_style,
     )
 
 
@@ -721,6 +722,8 @@ def main():
     p_sub.add_argument("--preset", default="fast", help="FFmpeg preset (default: fast)")
     p_sub.add_argument("--resolution", type=int, default=None, choices=[720, 1080], help="Scale output")
     p_sub.add_argument("--limit", type=int, default=None, help="Giới hạn số video")
+    p_sub.add_argument("--sub-style", default="default", choices=["default", "banner"],
+                       help="Style subtitle: default (viền đen nhỏ) hoặc banner (nền đen full width, text to)")
     p_sub.set_defaults(func=cmd_replace_subtitle)
 
     # === Command: distribute ===
