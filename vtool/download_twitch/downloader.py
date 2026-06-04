@@ -39,7 +39,7 @@ def get_twitch_vods(channel_url: str, limit: int = None, output_file: str = "twi
     if limit:
         cmd.extend(["--playlist-end", str(limit)])
     
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    result = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace")
     
     if result.returncode != 0:
         print(f"❌ Lỗi lấy URL: {result.stderr[:300]}")
@@ -118,7 +118,7 @@ def _download_and_split(url: str, output_dir: str, quality: str, split_seconds: 
     try:
         # Bước 1: Lấy metadata
         meta_cmd = ["yt-dlp", "--dump-json", "--no-download", url]
-        meta_result = subprocess.run(meta_cmd, capture_output=True, text=True, timeout=60)
+        meta_result = subprocess.run(meta_cmd, capture_output=True, text=True, timeout=60, encoding="utf-8", errors="replace")
         
         if meta_result.returncode != 0:
             result["status"] = "error"
@@ -143,7 +143,7 @@ def _download_and_split(url: str, output_dir: str, quality: str, split_seconds: 
             url
         ]
         
-        dl_result = subprocess.run(dl_cmd, capture_output=True, text=True, timeout=None)
+        dl_result = subprocess.run(dl_cmd, capture_output=True, text=True, timeout=None, encoding="utf-8", errors="replace")
         
         if dl_result.returncode != 0:
             result["status"] = "error"
@@ -198,7 +198,7 @@ def _split_video(
             part_path
         ]
         
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=300, encoding="utf-8", errors="replace")
         
         if proc.returncode != 0:
             continue
