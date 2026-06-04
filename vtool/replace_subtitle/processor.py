@@ -42,7 +42,8 @@ def _get_subtitle_style(style: str, width: int, height: int) -> str:
     """Trả về subtitle style string cho FFmpeg."""
     if style == "banner":
         # Kiểu 2: nền đen full width (drawbox), text trắng to, sát mép dưới
-        font_size = max(24, int(height * 0.05))
+        # FontSize ~4% height → đảm bảo 2-3 dòng nằm gọn trong banner 20%
+        font_size = max(22, int(height * 0.04))
         return (
             f"FontSize={font_size},FontName=Arial,PrimaryColour=&H00FFFFFF,"
             "OutlineColour=&H00000000,Outline=1,Shadow=0,"
