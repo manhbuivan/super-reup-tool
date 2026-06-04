@@ -41,14 +41,14 @@ def _find_srt(input_dir: str, video_name: str) -> str:
 def _get_subtitle_style(style: str, width: int, height: int) -> str:
     """Trả về subtitle style string cho FFmpeg."""
     if style == "banner":
-        # Kiểu 2: nền đen full width (drawbox), text trắng to, sát mép dưới
-        # FontSize ~4% height → đảm bảo 2-3 dòng nằm gọn trong banner 20%
-        font_size = max(22, int(height * 0.04))
+        # Kiểu 2: nền đen full width (drawbox vẽ trước), text trắng nằm trong banner
+        # FontSize ~3.5% height → 2-3 dòng vừa trong banner 20%
+        font_size = max(22, int(height * 0.035))
         return (
-            f"FontSize={font_size},FontName=Arial,PrimaryColour=&H00FFFFFF,"
+            f"FontSize={font_size},FontName=Arial Bold,PrimaryColour=&H00FFFFFF,"
             "OutlineColour=&H00000000,Outline=1,Shadow=0,"
             "BackColour=&H00000000,BorderStyle=1,"
-            f"MarginV=15,MarginL=20,MarginR=20"
+            f"Alignment=2,MarginV=25,MarginL=20,MarginR=20"
         )
     else:
         # Kiểu 1 (default): text trắng viền đen, nền mờ nhỏ
