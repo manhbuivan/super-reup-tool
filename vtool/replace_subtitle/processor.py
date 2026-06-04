@@ -107,9 +107,9 @@ def process_single_subtitle(args: tuple) -> dict:
             filter_complex = (
                 f"[1:v]scale={width}:{height}:force_original_aspect_ratio=increase,"
                 f"crop={width}:{height}[bg];"
-                f"color=black:s={width}x{banner_height}:d={duration}[banner];"
+                f"color=black@0.7:s={width}x{banner_height}:d={duration}[banner];"
                 f"[banner]subtitles='{srt_escaped}':force_style='{subtitle_style}'[texted];"
-                f"[bg][texted]overlay=0:{bg_area_height}[out]"
+                f"[bg][texted]overlay=0:{bg_area_height}:format=auto[out]"
             )
         else:
             filter_complex = (
@@ -130,9 +130,9 @@ def process_single_subtitle(args: tuple) -> dict:
                 filter_complex = (
                     f"[1:v]scale={width}:{height}:force_original_aspect_ratio=increase,"
                     f"crop={width}:{height}[bg];"
-                    f"color=black:s={width}x{banner_height}:d={duration}[banner];"
+                    f"color=black@0.7:s={width}x{banner_height}:d={duration}[banner];"
                     f"[banner]subtitles='{srt_escaped}':force_style='{subtitle_style}'[texted];"
-                    f"[bg][texted]overlay=0:{bg_area_height}[composited];"
+                    f"[bg][texted]overlay=0:{bg_area_height}:format=auto[composited];"
                     f"[composited]scale={target_w}:{target_h}[out]"
                 )
             else:
