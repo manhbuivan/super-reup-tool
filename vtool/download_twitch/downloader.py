@@ -139,15 +139,18 @@ def _download_and_split(url: str, output_dir: str, quality: str, split_seconds: 
             "yt-dlp",
             "-f", format_str,
             "--merge-output-format", "mp4",
+            "--newline",
             "-o", temp_path,
             url
         ]
         
-        dl_result = subprocess.run(dl_cmd, capture_output=True, text=True, timeout=None, encoding="utf-8", errors="replace")
+        # Hiển thị progress real-time thay vì capture_output
+        print(f"           ⏬ Đang tải ({duration//3600}h{(duration%3600)//60}m)...")
+        dl_result = subprocess.run(dl_cmd, text=True, timeout=None, encoding="utf-8", errors="replace")
         
         if dl_result.returncode != 0:
             result["status"] = "error"
-            result["error"] = dl_result.stderr[:200]
+            result["error"] = "Download failed"
             return result
         
         # Bước 3: Cắt video nếu dài hơn split_seconds
