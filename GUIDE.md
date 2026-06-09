@@ -301,4 +301,11 @@ super-reup-tool/
     │   └── ...
     ├── K2/ ...
     └── K5/ ...
-```
+
+
+# Distribute: 3 kênh, 3 video/ngày, bắt đầu 10/06
+python run.py distribute --input output_videos --output schedule_1 --profiles "kenh_1,kenh_2,kenh_3" --per-day 3 --start-date 2026-06-10
+
+# Export excel: tất cả ngày
+python run.py export-upload --schedule schedule_1 --all
+
