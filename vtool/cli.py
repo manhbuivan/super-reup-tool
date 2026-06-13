@@ -326,10 +326,10 @@ def cmd_export_upload(args):
         publish_times = profile_config.get("publish_times",
                                            ["08:00", "10:00", "12:00", "14:00", "16:00", "18:00", "20:00"])
 
-        # Get GPM profile name: ưu tiên config name, fallback API name, cuối cùng profile_name
+        # Get GPM profile name: ưu tiên API name (cho tool auto), fallback config name, cuối cùng profile_name
         gpm_id = profile_config.get("gpm_id", "") if isinstance(profile_config, dict) else ""
         config_name = profile_config.get("name", "") if isinstance(profile_config, dict) else ""
-        gpm_profile_name = config_name or gpm_names.get(gpm_id, profile_name)
+        gpm_profile_name = gpm_names.get(gpm_id, config_name or profile_name)
 
         for date_str in upload_dates:
             if date_str not in days_schedule:
