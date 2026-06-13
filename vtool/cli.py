@@ -298,8 +298,11 @@ def cmd_export_upload(args):
         if resp.status_code == 200:
             for p in resp.json().get("data", []):
                 gpm_names[p.get("id", "")] = p.get("name", "")
-    except Exception:
-        pass
+            print(f"  ✅ GPM API: tìm thấy {len(gpm_names)} profiles")
+        else:
+            print(f"  ⚠️  GPM API trả về status {resp.status_code}")
+    except Exception as e:
+        print(f"  ⚠️  Không kết nối được GPM API: {e}")
 
     # Build rows cho tất cả profiles
     rows = []
