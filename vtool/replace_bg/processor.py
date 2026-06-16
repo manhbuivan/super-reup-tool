@@ -17,24 +17,68 @@ from vtool.core.ffmpeg import (
 from vtool.replace_bg.config import ReplaceBgConfig
 
 
-def _detect_or_fallback(video_path: str, config: ReplaceBgConfig) -> float:
-    """Detect text ratio hoặc dùng fallback."""
+def _detect_or_fallback(video_path: str, config: ReplaceBgConfig) -> tuple:
+    """
+    Detect text ratio hoặc dùng fallback.
+    Trả về (text_ratio, bottom_margin) — bottom_margin = số pixel mép đen dưới cùng cần bỏ.
+    """
     if not config.auto_detect:
-        return config.text_ratio
+        # Dù không auto-detect text bar, vẫn detect mép đen dưới cùng
+        bottom_margin = _detect_bottom_margin(video_path)
+        return config.text_ratio, bottom_margin
 
     try:
         from vtool.core.detector import detect_text_region
         result = detect_text_region(video_path, config.detect_sample_times)
 
         if result["confidence"] >= 0.3:
-            return result["text_ratio"]
+            return result["text_ratio"], result.get("bottom_margin", 0)
         else:
-            return config.text_ratio
+            bottom_margin = _detect_bottom_margin(video_path)
+            return config.text_ratio, bottom_margin
     except ImportError:
-        # OpenCV chưa cài → dùng fallback
-        return config.text_ratio
+        return config.text_ratio, 0
     except Exception:
-        return config.text_ratio
+        return config.text_ratio, 0
+
+
+def _detect_bottom_margin(video_path: str) -> int:
+    """Detect mép đen trống dưới cùng video (không có text, chỉ là letterbox)."""
+    try:
+        import numpy as np
+        import cv2
+        from vtool.core.ffmpeg import extract_frame, get_video_dimensions
+
+        width, height, duration, fps = get_video_dimensions(video_path)
+        t = min(3.0, duration * 0.3)
+        frame_path = extract_frame(video_path, t)
+
+        try:
+            frame = cv2.imread(frame_path)
+            if frame is None:
+                return 0
+
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            row_brightness = np.mean(gray, axis=1)
+
+            # Detect texture (có text hay không)
+            sobel_x = cv2.Sobel(gray, cv2.CV_64F, 1, 0, ksize=3)
+            row_texture = np.mean(np.abs(sobel_x), axis=1)
+
+            # Scan từ mép dưới lên: tối + không texture = mép đen trống
+            bottom_margin = 0
+            for y in range(height - 1, int(height * 0.7), -1):
+                if row_brightness[y] < 20 and row_texture[y] < 3:
+                    bottom_margin += 1
+                else:
+                    break
+
+            return bottom_margin
+        finally:
+            if frame_path and os.path.exists(frame_path):
+                os.remove(frame_path)
+    except Exception:
+        return 0
 
 
 def process_single_video(args: tuple) -> dict:
@@ -63,12 +107,15 @@ def process_single_video(args: tuple) -> dict:
         width, height, duration, fps = get_video_dimensions(video_path)
 
         # Detect text region
-        text_ratio = _detect_or_fallback(video_path, config)
+        text_ratio, detected_margin = _detect_or_fallback(video_path, config)
         result["text_ratio"] = text_ratio
 
         # Tính toán vùng
-        text_height = int(height * text_ratio)
-        bg_height = height - text_height
+        # bottom_trim: ưu tiên detected_margin (tự nhận diện mép đen),
+        # fallback về config.bottom_trim nếu detect trả về 0
+        bottom_trim = detected_margin if detected_margin > 0 else (config.bottom_trim if hasattr(config, 'bottom_trim') else 0)
+        text_height = int(height * text_ratio) - bottom_trim
+        bg_height = height - text_height - bottom_trim
 
         # Xác định background type
         bg_ext = Path(background_path).suffix.lower()
@@ -97,6 +144,13 @@ def process_single_video(args: tuple) -> dict:
         # Filter complex: scale bg full frame → overlay text bar sát mép dưới
         # Nếu có overlay_opacity: thêm lớp đen mờ lên text bar
         opacity = config.overlay_opacity if hasattr(config, 'overlay_opacity') and config.overlay_opacity else 0
+
+        # Tính vị trí crop Y (bỏ mép dưới)
+        # crop lấy text_height pixel, bắt đầu từ (height - text_height - bottom_trim)
+        # → bỏ qua bottom_trim pixel mép dưới cùng
+        crop_y = height - text_height - bottom_trim
+        # Vị trí overlay text bar trong output (sát mép dưới output, không có mép thừa)
+        overlay_y = height - text_height
 
         # Mode: lumakey = giữ text trắng, xoá nền tối
         if config.mode == "lumakey":
@@ -129,17 +183,17 @@ def process_single_video(args: tuple) -> dict:
                 filter_complex = (
                     f"[1:v]scale={width}:{height}:force_original_aspect_ratio=increase,"
                     f"crop={width}:{height}[bg];"
-                    f"[0:v]crop={width}:{text_height}:0:{height - text_height},"
+                    f"[0:v]crop={width}:{text_height}:0:{crop_y},"
                     f"drawbox=x=0:y=0:w={width}:h={text_height}:color=black@{alpha}:t=fill[darktext];"
-                    f"[bg][darktext]overlay=0:{height - text_height}[composited];"
+                    f"[bg][darktext]overlay=0:{overlay_y}[composited];"
                     f"[composited]scale={target_w}:{target_h}[out]"
                 )
             else:
                 filter_complex = (
                     f"[1:v]scale={width}:{height}:force_original_aspect_ratio=increase,"
                     f"crop={width}:{height}[bg];"
-                    f"[0:v]crop={width}:{text_height}:0:{height - text_height}[text];"
-                    f"[bg][text]overlay=0:{height - text_height}[composited];"
+                    f"[0:v]crop={width}:{text_height}:0:{crop_y}[text];"
+                    f"[bg][text]overlay=0:{overlay_y}[composited];"
                     f"[composited]scale={target_w}:{target_h}[out]"
                 )
         else:
@@ -148,16 +202,16 @@ def process_single_video(args: tuple) -> dict:
                 filter_complex = (
                     f"[1:v]scale={width}:{height}:force_original_aspect_ratio=increase,"
                     f"crop={width}:{height}[bg];"
-                    f"[0:v]crop={width}:{text_height}:0:{height - text_height},"
+                    f"[0:v]crop={width}:{text_height}:0:{crop_y},"
                     f"drawbox=x=0:y=0:w={width}:h={text_height}:color=black@{alpha}:t=fill[darktext];"
-                    f"[bg][darktext]overlay=0:{height - text_height}[out]"
+                    f"[bg][darktext]overlay=0:{overlay_y}[out]"
                 )
             else:
                 filter_complex = (
                     f"[1:v]scale={width}:{height}:force_original_aspect_ratio=increase,"
                     f"crop={width}:{height}[bg];"
-                    f"[0:v]crop={width}:{text_height}:0:{height - text_height}[text];"
-                    f"[bg][text]overlay=0:{height - text_height}[out]"
+                    f"[0:v]crop={width}:{text_height}:0:{crop_y}[text];"
+                    f"[bg][text]overlay=0:{overlay_y}[out]"
                 )
 
         # Build FFmpeg command

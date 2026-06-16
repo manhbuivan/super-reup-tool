@@ -24,3 +24,4 @@ class ReplaceBgConfig:
     resolution: int = None  # Output resolution (720, 1080, None=giữ nguyên)
     overlay_opacity: float = 0  # Độ mờ đen phủ lên text bar (0=không, 0.5=mờ 50%, 0.7=mờ 70%)
     mode: str = "overlay"  # Mode: overlay (default), lumakey (giữ text trắng)
+    bottom_trim: int = 6  # Số pixel cắt bỏ mép dưới cùng (tránh viền đen thừa)

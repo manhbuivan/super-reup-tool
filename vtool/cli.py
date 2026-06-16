@@ -34,6 +34,7 @@ def cmd_replace_bg(args):
         resolution=args.resolution,
         overlay_opacity=args.overlay_opacity,
         mode=args.mode,
+        bottom_trim=args.bottom_trim,
     )
 
     # Validate directories
@@ -698,6 +699,8 @@ def main():
                            help="Phu den mo len text bar (0=khong, 0.5=mo 50 phan tram, 0.7=mo 70 phan tram)")
     p_replace.add_argument("--mode", default="overlay", choices=["overlay", "lumakey"],
                            help="Mode: overlay (default) hoac lumakey (giu text trang, xoa nen)")
+    p_replace.add_argument("--bottom-trim", type=int, default=6,
+                           help="Số pixel cắt bỏ mép dưới cùng (default: 6, tránh viền đen thừa)")
     p_replace.set_defaults(func=cmd_replace_bg)
 
     # === Command: replace-subtitle ===

@@ -81,7 +81,8 @@ def detect_text_region(video_path: str, sample_times: list = None) -> dict:
             "text_y": int(height * 0.70),
             "height": height,
             "confidence": 0.0,
-            "method": "fallback_default"
+            "method": "fallback_default",
+            "bottom_margin": 0
         }
     
     # Lấy median position (ổn định hơn mean)
@@ -100,7 +101,8 @@ def detect_text_region(video_path: str, sample_times: list = None) -> dict:
         "text_y": median_y,
         "height": height,
         "confidence": round(confidence, 3),
-        "method": "edge_detection"
+        "method": "edge_detection",
+        "bottom_margin": 0  # Đã được trừ trong detect rồi
     }
 
 
@@ -119,6 +121,26 @@ def _detect_text_bar_in_frame(frame: np.ndarray) -> Optional[int]:
     # Tính brightness trung bình theo từng hàng
     row_brightness = np.mean(gray, axis=1)
     
+    # --- Bỏ qua mép đen dưới cùng (letterbox / viền đen trống) ---
+    # Mép đen = các hàng pixel cực tối + không có texture/text
+    # Text bar tuy cũng tối nhưng có text (edge cao hơn)
+    sobel_x = cv2.Sobel(gray, cv2.CV_64F, 1, 0, ksize=3)
+    row_texture = np.mean(np.abs(sobel_x), axis=1)
+    
+    # Scan từ mép dưới cùng lên: nếu hàng rất tối VÀ không có texture → mép đen trống
+    bottom_margin = 0
+    empty_threshold_brightness = 20  # Rất tối
+    empty_threshold_texture = 3      # Gần như không có edge/text
+    
+    for y in range(height - 1, int(height * 0.7), -1):
+        if row_brightness[y] < empty_threshold_brightness and row_texture[y] < empty_threshold_texture:
+            bottom_margin += 1
+        else:
+            break
+    
+    # Bắt đầu scan text bar từ trên mép đen trống
+    effective_bottom = height - 1 - bottom_margin
+    
     # Threshold: vùng tối (text bar thường có nền đen/rất tối)
     dark_threshold = 40  # Pixel value < 40 = tối
     
@@ -126,7 +148,7 @@ def _detect_text_bar_in_frame(frame: np.ndarray) -> Optional[int]:
     # Chỉ scan trong 60% dưới cùng (text bar không bao giờ chiếm > 60%)
     scan_start = int(height * 0.4)
     
-    # Tìm vùng tối liên tục từ dưới lên
+    # Tìm vùng tối liên tục từ dưới lên (bắt đầu từ trên mép đen)
     is_dark = row_brightness < dark_threshold
     
     # Tìm transition point: từ tối → sáng (scan từ dưới lên)
@@ -134,7 +156,7 @@ def _detect_text_bar_in_frame(frame: np.ndarray) -> Optional[int]:
     consecutive_dark = 0
     min_dark_rows = int(height * 0.05)  # Ít nhất 5% height phải là dark
     
-    for y in range(height - 1, scan_start, -1):
+    for y in range(effective_bottom, scan_start, -1):
         if is_dark[y]:
             consecutive_dark += 1
         else:
