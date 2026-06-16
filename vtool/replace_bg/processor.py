@@ -137,7 +137,7 @@ def process_single_video(args: tuple) -> dict:
                 extra_params = ["-q:v", "65"]
             elif system == "Windows":
                 vcodec = "h264_nvenc"
-                extra_params = ["-preset", "p4", "-cq", str(config.crf)]
+                extra_params = ["-preset", "p1", "-cq", str(config.crf), "-rc", "constqp"]
                 hw_decode = ["-hwaccel", "cuda"]
             else:
                 vcodec = "h264_nvenc"
