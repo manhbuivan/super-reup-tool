@@ -114,8 +114,9 @@ def process_single_video(args: tuple) -> dict:
         # bottom_trim: ưu tiên detected_margin (tự nhận diện mép đen),
         # fallback về config.bottom_trim nếu detect trả về 0
         bottom_trim = detected_margin if detected_margin > 0 else (config.bottom_trim if hasattr(config, 'bottom_trim') else 0)
-        text_height = int(height * text_ratio) - bottom_trim
-        bg_height = height - text_height - bottom_trim
+        text_height = int(height * text_ratio)
+        # Đảm bảo text_height chẵn (tránh lỗi FFmpeg)
+        text_height = text_height if text_height % 2 == 0 else text_height - 1
 
         # Xác định background type
         bg_ext = Path(background_path).suffix.lower()
@@ -146,10 +147,10 @@ def process_single_video(args: tuple) -> dict:
         opacity = config.overlay_opacity if hasattr(config, 'overlay_opacity') and config.overlay_opacity else 0
 
         # Tính vị trí crop Y (bỏ mép dưới)
-        # crop lấy text_height pixel, bắt đầu từ (height - text_height - bottom_trim)
-        # → bỏ qua bottom_trim pixel mép dưới cùng
+        # Crop text_height pixel từ video gốc, bắt đầu tại crop_y
+        # bottom_trim dịch lên để không lấy mép đen dưới cùng
         crop_y = height - text_height - bottom_trim
-        # Vị trí overlay text bar trong output (sát mép dưới output, không có mép thừa)
+        # Overlay text bar sát đáy output (không hở mép)
         overlay_y = height - text_height
 
         # Mode: lumakey = giữ text trắng, xoá nền tối
