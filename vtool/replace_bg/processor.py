@@ -111,20 +111,16 @@ def process_single_video(args: tuple) -> dict:
         result["text_ratio"] = text_ratio
 
         # Tính toán vùng text bar
-        bottom_trim = detected_margin if detected_margin > 0 else (config.bottom_trim if hasattr(config, 'bottom_trim') else 0)
-        
-        # text_height = chiều cao text bar detect được + thêm padding lên trên
-        # Padding 2% height để chắc chắn crop hết vùng đen, không hở
-        padding = int(height * 0.02)
-        text_height = int(height * text_ratio) + padding
+        text_height = int(height * text_ratio)
         # Đảm bảo chẵn
         text_height = text_height if text_height % 2 == 0 else text_height + 1
         # Không vượt quá 60% video
         text_height = min(text_height, int(height * 0.6))
 
-        # crop_y: vị trí bắt đầu crop trong video gốc (bỏ mép dưới)
-        crop_y = height - text_height - bottom_trim
-        # overlay_y: vị trí đặt text bar trong output (sát đáy)
+        # crop_y: bắt đầu crop từ vị trí nào trong video gốc
+        # overlay_y: đặt text bar ở vị trí nào trong output
+        # Text bar luôn sát đáy output, crop từ đáy video gốc lên
+        crop_y = height - text_height
         overlay_y = height - text_height
 
         # Xác định background type
@@ -142,7 +138,7 @@ def process_single_video(args: tuple) -> dict:
             elif system == "Windows":
                 vcodec = "h264_nvenc"
                 extra_params = ["-preset", "p4", "-cq", str(config.crf)]
-                hw_decode = []
+                hw_decode = ["-hwaccel", "cuda"]
             else:
                 vcodec = "h264_nvenc"
                 extra_params = ["-preset", "p4", "-cq", str(config.crf)]
