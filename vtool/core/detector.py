@@ -46,16 +46,17 @@ def detect_text_region(video_path: str, sample_times: list = None) -> dict:
         )
     
     if sample_times is None:
-        sample_times = [1.0, 3.0, 5.0]
+        sample_times = [1.0, 3.0, 5.0, 10.0, 20.0, 40.0, 60.0, 90.0, 120.0, 180.0]
     
     from vtool.core.ffmpeg import extract_frame, get_video_dimensions
     
     width, height, duration, fps = get_video_dimensions(video_path)
     
-    # Lấy nhiều frame để tăng độ chính xác
+    # Lấy nhiều frame để tìm text bar lớn nhất
     valid_times = [t for t in sample_times if t < duration]
-    if not valid_times:
-        valid_times = [duration * 0.1, duration * 0.3, duration * 0.5]
+    if not valid_times or len(valid_times) < 3:
+        # Video ngắn: sample đều theo duration
+        valid_times = [duration * p for p in [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]]
     
     detected_positions = []
     
@@ -85,9 +86,10 @@ def detect_text_region(video_path: str, sample_times: list = None) -> dict:
             "bottom_margin": 0
         }
     
-    # Lấy median position (ổn định hơn mean)
-    median_y = int(np.median(detected_positions))
-    text_ratio = (height - median_y) / height
+    # Lấy MIN position (text_y thấp nhất = text bar lớn nhất)
+    # → đảm bảo crop đủ cho đoạn text to nhất, đoạn bé thì dư nền đen (OK)
+    min_y = int(np.min(detected_positions))
+    text_ratio = (height - min_y) / height
     
     # Tính confidence dựa trên consistency giữa các frame
     if len(detected_positions) >= 2:
@@ -98,11 +100,11 @@ def detect_text_region(video_path: str, sample_times: list = None) -> dict:
     
     return {
         "text_ratio": round(text_ratio, 4),
-        "text_y": median_y,
+        "text_y": min_y,
         "height": height,
         "confidence": round(confidence, 3),
-        "method": "edge_detection",
-        "bottom_margin": 0  # Đã được trừ trong detect rồi
+        "method": "edge_detection_max",
+        "bottom_margin": 0
     }
 
 
