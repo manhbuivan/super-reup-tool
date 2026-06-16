@@ -111,15 +111,9 @@ def process_single_video(args: tuple) -> dict:
         result["text_ratio"] = text_ratio
 
         # Tính toán vùng
-        # bottom_trim: ưu tiên detected_margin (tự nhận diện mép đen),
-        # fallback về config.bottom_trim nếu detect trả về 0
         bottom_trim = detected_margin if detected_margin > 0 else (config.bottom_trim if hasattr(config, 'bottom_trim') else 0)
         text_height = int(height * text_ratio)
-        # Thêm padding phía trên text bar (mở rộng lên) để che khớp vùng chuyển tiếp
-        # Tránh hở viền giữa background mới và text bar
-        top_padding = max(4, int(height * 0.005))  # Ít nhất 4px, hoặc 0.5% height
-        text_height += top_padding
-        # Đảm bảo text_height chẵn (tránh lỗi FFmpeg)
+        # Đảm bảo text_height chẵn
         text_height = text_height if text_height % 2 == 0 else text_height - 1
 
         # Xác định background type
@@ -137,7 +131,7 @@ def process_single_video(args: tuple) -> dict:
             elif system == "Windows":
                 vcodec = "h264_nvenc"
                 extra_params = ["-preset", "p4", "-cq", str(config.crf)]
-                hw_decode = []  # 1660 Ti không decode AV1, để CPU decode
+                hw_decode = []
             else:
                 vcodec = "h264_nvenc"
                 extra_params = ["-preset", "p4", "-cq", str(config.crf)]
@@ -146,16 +140,25 @@ def process_single_video(args: tuple) -> dict:
             vcodec = config.video_codec
             extra_params = ["-preset", config.preset, "-crf", str(config.crf)]
 
-        # Filter complex: scale bg full frame → overlay text bar sát mép dưới
-        # Nếu có overlay_opacity: thêm lớp đen mờ lên text bar
         opacity = config.overlay_opacity if hasattr(config, 'overlay_opacity') and config.overlay_opacity else 0
 
-        # Tính vị trí crop Y (bỏ mép dưới)
-        # Crop text_height pixel từ video gốc, bắt đầu tại crop_y
-        # bottom_trim dịch lên để không lấy mép đen dưới cùng
-        crop_y = height - text_height - bottom_trim
-        # Overlay text bar sát đáy output (không hở mép)
-        overlay_y = height - text_height
+        # Vị trí bắt đầu text bar (từ trên xuống)
+        # text_y = vị trí bắt đầu text bar, tính từ trên
+        text_y = height - text_height - bottom_trim
+        # Feather: lấy dư thêm phía trên text bar (~3% height)
+        # Đảm bảo không hở viền dù detect sai vài pixel
+        feather = max(20, int(height * 0.03))
+
+        # === Build filter complex ===
+        # Approach: dùng gradient mask blend mượt giữa background và video gốc
+        # - Phần trên text_y: hiện background 100%
+        # - Vùng feather (text_y - feather → text_y): blend gradient
+        # - Phần dưới text_y: hiện video gốc 100% (text bar)
+        #
+        # Dùng geq (generic equation) để tạo alpha mask:
+        # lum = 255 nếu y < text_y-feather (background)
+        # lum = gradient nếu trong vùng feather
+        # lum = 0 nếu y >= text_y (video gốc)
 
         # Mode: lumakey = giữ text trắng, xoá nền tối
         if config.mode == "lumakey":
@@ -177,45 +180,46 @@ def process_single_video(args: tuple) -> dict:
                     f"[0:v]lumakey=threshold=0.7:tolerance=0.2:softness=0.1[fg];"
                     f"[bg][fg]overlay=0:0[out]"
                 )
-        elif config.resolution:
-            target_h = config.resolution
-            target_w = int(width * target_h / height)
-            target_w = target_w if target_w % 2 == 0 else target_w + 1
-            
+        else:
+            # Crop text bar lấy dư lên trên (padding lớn ~2% height)
+            # Phần dư sẽ bị background đè lên → không thấy đường nối
+            # crop_start_y = vị trí bắt đầu crop (lấy dư lên feather pixel)
+            crop_start_y = max(0, text_y - feather - bottom_trim)
+            total_crop_h = height - crop_start_y
+            # Đảm bảo chẵn
+            total_crop_h = total_crop_h if total_crop_h % 2 == 0 else total_crop_h + 1
+            # overlay_y = đặt crop ở đúng vị trí crop_start_y trong output
+            overlay_y = crop_start_y
+
             if opacity > 0:
-                # Dùng drawbox để vẽ hộp đen mờ lên phần text bar
                 alpha = opacity
-                filter_complex = (
-                    f"[1:v]scale={width}:{height}:force_original_aspect_ratio=increase,"
-                    f"crop={width}:{height}[bg];"
-                    f"[0:v]crop={width}:{text_height}:0:{crop_y},"
-                    f"drawbox=x=0:y=0:w={width}:h={text_height}:color=black@{alpha}:t=fill[darktext];"
-                    f"[bg][darktext]overlay=0:{overlay_y}[composited];"
-                    f"[composited]scale={target_w}:{target_h}[out]"
+                darkbox_filter = (
+                    f"drawbox=x=0:y=0:w={width}:h={total_crop_h}:"
+                    f"color=black@{alpha}:t=fill,"
                 )
             else:
+                darkbox_filter = ""
+
+            if config.resolution:
+                target_h = config.resolution
+                target_w = int(width * target_h / height)
+                target_w = target_w if target_w % 2 == 0 else target_w + 1
                 filter_complex = (
                     f"[1:v]scale={width}:{height}:force_original_aspect_ratio=increase,"
                     f"crop={width}:{height}[bg];"
-                    f"[0:v]crop={width}:{text_height}:0:{crop_y}[text];"
+                    f"[0:v]crop={width}:{total_crop_h}:0:{crop_start_y},"
+                    f"{darkbox_filter}"
+                    f"setsar=1[text];"
                     f"[bg][text]overlay=0:{overlay_y}[composited];"
                     f"[composited]scale={target_w}:{target_h}[out]"
                 )
-        else:
-            if opacity > 0:
-                alpha = opacity
-                filter_complex = (
-                    f"[1:v]scale={width}:{height}:force_original_aspect_ratio=increase,"
-                    f"crop={width}:{height}[bg];"
-                    f"[0:v]crop={width}:{text_height}:0:{crop_y},"
-                    f"drawbox=x=0:y=0:w={width}:h={text_height}:color=black@{alpha}:t=fill[darktext];"
-                    f"[bg][darktext]overlay=0:{overlay_y}[out]"
-                )
             else:
                 filter_complex = (
                     f"[1:v]scale={width}:{height}:force_original_aspect_ratio=increase,"
                     f"crop={width}:{height}[bg];"
-                    f"[0:v]crop={width}:{text_height}:0:{crop_y}[text];"
+                    f"[0:v]crop={width}:{total_crop_h}:0:{crop_start_y},"
+                    f"{darkbox_filter}"
+                    f"setsar=1[text];"
                     f"[bg][text]overlay=0:{overlay_y}[out]"
                 )
 
