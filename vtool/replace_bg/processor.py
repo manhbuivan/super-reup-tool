@@ -115,6 +115,10 @@ def process_single_video(args: tuple) -> dict:
         # fallback về config.bottom_trim nếu detect trả về 0
         bottom_trim = detected_margin if detected_margin > 0 else (config.bottom_trim if hasattr(config, 'bottom_trim') else 0)
         text_height = int(height * text_ratio)
+        # Thêm padding phía trên text bar (mở rộng lên) để che khớp vùng chuyển tiếp
+        # Tránh hở viền giữa background mới và text bar
+        top_padding = max(4, int(height * 0.005))  # Ít nhất 4px, hoặc 0.5% height
+        text_height += top_padding
         # Đảm bảo text_height chẵn (tránh lỗi FFmpeg)
         text_height = text_height if text_height % 2 == 0 else text_height - 1
 
