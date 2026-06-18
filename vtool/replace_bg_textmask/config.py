@@ -19,7 +19,7 @@ class TextMaskConfig:
     # Text mask settings
     threshold: int = 200       # Ngưỡng brightness để coi là text trắng (0-255, cao = chỉ giữ pixel rất sáng)
     softness: int = 10         # Độ mượt viền text (pixel feather), giúp text không bị răng cưa
-    expand: int = 1            # Mở rộng mask (dilate) để giữ viền text đầy đủ hơn
+    expand: int = 0            # Mở rộng mask (dilate) để giữ viền text đầy đủ hơn (0=tắt, tránh lỗi filter)
     text_region: str = "full"  # Vùng detect: "full" = toàn frame, "bottom" = chỉ nửa dưới
     text_ratio: float = 0.45   # Nếu text_region="bottom", giữ bao nhiêu % phía dưới
     shadow_remove: bool = True # Xoá shadow/outline đen quanh text (giữ sạch hơn)

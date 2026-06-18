@@ -91,8 +91,9 @@ def _build_textmask_filter(width: int, height: int, config: TextMaskConfig) -> s
     # - Trên threshold: giữ nguyên màu, alpha=255
     # - Giữa min_bright và threshold: fade mượt (giữ viền text)
     # - Dưới min_bright: xoá hoàn toàn, alpha=0
+    # Dùng format=rgba (có alpha channel) để geq tạo được transparency
     geq_filter = (
-        f"{mask_input}format=gbrp,"
+        f"{mask_input}format=rgba,"
         f"geq="
         f"r='if(gt(lum(X,Y),{threshold}),r(X,Y),if(gt(lum(X,Y),{min_bright}),r(X,Y),0))':"
         f"g='if(gt(lum(X,Y),{threshold}),g(X,Y),if(gt(lum(X,Y),{min_bright}),g(X,Y),0))':"
@@ -100,12 +101,6 @@ def _build_textmask_filter(width: int, height: int, config: TextMaskConfig) -> s
         f"a='if(gt(lum(X,Y),{threshold}),255,"
         f"if(gt(lum(X,Y),{min_bright}),(lum(X,Y)-{min_bright})*255/({threshold}-{min_bright}),0))'"
     )
-
-    # Thêm dilate nếu cần mở rộng mask (giữ viền text đầy đủ)
-    # Dùng inflate thay maximum vì maximum không có trên mọi bản FFmpeg
-    if config.expand > 0:
-        for _ in range(config.expand):
-            geq_filter += ",inflate"
 
     geq_filter += "[textmasked]"
 

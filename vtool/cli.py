@@ -541,8 +541,8 @@ def main():
                             help="Ngưỡng soft zone dưới threshold (default: 180, giữ viền text mềm)")
     p_textmask.add_argument("--softness", type=int, default=10,
                             help="Độ mượt viền (default: 10)")
-    p_textmask.add_argument("--expand", type=int, default=1,
-                            help="Mở rộng mask bao nhiêu pixel (default: 1, giữ viền text đầy đủ)")
+    p_textmask.add_argument("--expand", type=int, default=0,
+                            help="Mở rộng mask bao nhiêu pixel (default: 0, tắt để tránh lỗi filter)")
     p_textmask.add_argument("--text-region", default="full", choices=["full", "bottom"],
                             help="Vùng detect: full=toàn frame, bottom=chỉ phần dưới (default: full)")
     p_textmask.add_argument("--text-ratio", type=float, default=0.45,
