@@ -102,9 +102,10 @@ def _build_textmask_filter(width: int, height: int, config: TextMaskConfig) -> s
     )
 
     # Thêm dilate nếu cần mở rộng mask (giữ viền text đầy đủ)
+    # Dùng inflate thay maximum vì maximum không có trên mọi bản FFmpeg
     if config.expand > 0:
         for _ in range(config.expand):
-            geq_filter += ",maximum=radius=1"
+            geq_filter += ",inflate"
 
     geq_filter += "[textmasked]"
 
