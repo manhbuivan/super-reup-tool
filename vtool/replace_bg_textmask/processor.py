@@ -38,8 +38,8 @@ def _build_textmask_filter(width: int, height: int, config: TextMaskConfig) -> s
     Chiến lược:
     - Background mới full frame
     - Vẽ dải đen mờ (drawbox) phía dưới để text nổi
-    - Tạo alpha mask từ pixel sáng (chữ trắng) trong video gốc
-    - Overlay chữ trắng lên trên dải đen mờ
+    - Dùng lumakey để xoá pixel tối (background) và giữ pixel sáng (text trắng)
+    - Overlay text trắng lên background mới
     
     Kết quả: BG mới + dải đen mờ + chữ trắng gốc. Hoàn toàn mới, không dính gì BG cũ.
     """
@@ -51,6 +51,14 @@ def _build_textmask_filter(width: int, height: int, config: TextMaskConfig) -> s
     # Tính chiều cao dải đen
     bar_height = int(height * bar_ratio)
     bar_y = height - bar_height
+
+    # Convert threshold 0-255 → lumakey threshold 0.0-1.0
+    # lumakey xoá pixel có luma < threshold → giữ pixel sáng (text)
+    luma_threshold = threshold / 255.0
+    # tolerance: vùng chuyển tiếp mềm
+    luma_tolerance = (threshold - min_bright) / 255.0
+    # softness cho viền mượt
+    luma_softness = 0.1
 
     # Xác định vùng crop text nếu chỉ giữ phần dưới
     if config.text_region == "bottom":
@@ -78,40 +86,22 @@ def _build_textmask_filter(width: int, height: int, config: TextMaskConfig) -> s
             f"crop={width}:{height}[bg]"
         )
 
-    # Step 2: Tạo text mask từ video gốc
+    # Step 2: Tạo text mask từ video gốc bằng lumakey
+    # lumakey: xoá pixel tối (dưới threshold), giữ pixel sáng (text trắng)
     if config.text_region == "bottom":
-        # Crop vùng text trước, rồi tạo mask
-        crop_part = f"[0:v]crop={width}:{text_height}:0:{crop_y}[textcrop];"
-        mask_input = "[textcrop]"
+        # Crop vùng text trước, rồi apply lumakey
+        filter_parts.append(
+            f"[0:v]crop={width}:{text_height}:0:{crop_y},"
+            f"lumakey=threshold={luma_threshold}:tolerance={luma_tolerance}:softness={luma_softness}[textmasked]"
+        )
     else:
-        crop_part = ""
-        mask_input = "[0:v]"
-
-    # geq filter: giữ pixel sáng (text trắng), xoá pixel tối (BG cũ)
-    # - Trên threshold: giữ nguyên màu, alpha=255
-    # - Giữa min_bright và threshold: fade mượt (giữ viền text)
-    # - Dưới min_bright: xoá hoàn toàn, alpha=0
-    # Dùng format=rgba (có alpha channel) để geq tạo được transparency
-    geq_filter = (
-        f"{mask_input}format=rgba,"
-        f"geq="
-        f"r='if(gt(lum(X,Y),{threshold}),r(X,Y),if(gt(lum(X,Y),{min_bright}),r(X,Y),0))':"
-        f"g='if(gt(lum(X,Y),{threshold}),g(X,Y),if(gt(lum(X,Y),{min_bright}),g(X,Y),0))':"
-        f"b='if(gt(lum(X,Y),{threshold}),b(X,Y),if(gt(lum(X,Y),{min_bright}),b(X,Y),0))':"
-        f"a='if(gt(lum(X,Y),{threshold}),255,"
-        f"if(gt(lum(X,Y),{min_bright}),(lum(X,Y)-{min_bright})*255/({threshold}-{min_bright}),0))'"
-    )
-
-    geq_filter += "[textmasked]"
-
-    if crop_part:
-        filter_parts.append(crop_part + geq_filter)
-    else:
-        filter_parts.append(geq_filter)
+        filter_parts.append(
+            f"[0:v]lumakey=threshold={luma_threshold}:tolerance={luma_tolerance}:softness={luma_softness}[textmasked]"
+        )
 
     # Step 3: Overlay text lên BG (đã có dải đen mờ)
     filter_parts.append(
-        f"[bg][textmasked]overlay=0:{overlay_y}:format=auto[out]"
+        f"[bg][textmasked]overlay=0:{overlay_y}[out]"
     )
 
     return ";".join(filter_parts)
