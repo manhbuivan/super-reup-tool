@@ -3,10 +3,10 @@ VTool CLI - Entry point cho tất cả commands.
 
 Usage:
     python -m vtool replace-bg [options]
+    python -m vtool replace-bg-textmask [options]
     python -m vtool get-urls --channel URL
     python -m vtool download-yt --list urls.txt
     python -m vtool distribute --profiles "P1,P2" --per-day 7
-    python -m vtool upload-gpm
     python -m vtool status
     python -m vtool --help
 """
@@ -123,24 +123,6 @@ def cmd_download_twitch(args):
     )
 
 
-def cmd_replace_subtitle(args):
-    """Command: Tạo video mới: background + subtitle render."""
-    from vtool.replace_subtitle import batch_process_subtitle
-
-    batch_process_subtitle(
-        input_dir=args.input,
-        background_dir=args.backgrounds,
-        output_dir=args.output,
-        max_workers=args.workers,
-        use_gpu=args.gpu,
-        crf=args.crf,
-        preset=args.preset,
-        resolution=args.resolution,
-        limit=args.limit,
-        sub_style=args.sub_style,
-    )
-
-
 def cmd_download_subtitle(args):
     """Command: Tải subtitle từ YouTube."""
     from vtool.download_subtitle import download_subtitles
@@ -210,238 +192,42 @@ def cmd_replace_bg_colorkey(args):
     batch_process_colorkey(config)
 
 
-def cmd_upload_gpm(args):
-    """Command: Upload video lên YouTube qua GPM-Login."""
-    from vtool.upload_gpm import upload_daily
+def cmd_replace_bg_textmask(args):
+    """Command: Thay nền video bằng text mask (giữ chữ trắng)."""
+    from vtool.replace_bg_textmask import batch_process_textmask, TextMaskConfig
 
-    profiles_map = None
-    if args.profiles_map:
-        profiles_map = {}
-        for pair in args.profiles_map.split(","):
-            parts = pair.strip().split(":")
-            if len(parts) == 2:
-                profiles_map[parts[0].strip()] = parts[1].strip()
-
-    # Parse publish times
-    publish_times = None
-    if args.times:
-        publish_times = [t.strip() for t in args.times.split(",")]
-
-    # Parse --date (ngày cụ thể hoặc số ngày)
-    days = args.days
-    target_date = None
-    if args.date:
-        target_date = args.date
-
-    upload_daily(
-        schedule_dir=args.schedule,
-        config_path=args.config,
-        days=days,
-        target_date=target_date,
-        visibility=args.visibility,
-        publish_times=publish_times,
-        profiles_map=profiles_map,
-        gpm_port=args.port if args.port else None,
+    config = TextMaskConfig(
+        input_dir=args.input,
+        background_dir=args.backgrounds,
+        output_dir=args.output,
+        max_workers=args.workers,
+        crf=args.crf,
+        preset=args.preset,
+        use_gpu=args.gpu,
+        output_format=args.format,
+        threshold=args.threshold,
+        softness=args.softness,
+        expand=args.expand,
+        text_region=args.text_region,
+        text_ratio=args.text_ratio,
+        min_brightness=args.min_brightness,
+        bar_opacity=args.bar_opacity,
+        bar_ratio=args.bar_ratio,
+        limit=args.limit,
+        resolution=args.resolution,
     )
 
-
-def cmd_list_profiles(args):
-    """Command: Liệt kê GPM profiles."""
-    from vtool.upload_gpm import list_gpm_profiles
-    list_gpm_profiles(gpm_port=args.port)
-
-
-def cmd_export_upload(args):
-    """Command: Tạo file Excel upload list cho GPM Automate."""
-    import json
+    # Validate directories
     import os
-    from datetime import datetime, timedelta
-    from pathlib import Path
-
-    schedule_file = os.path.join(args.schedule, "schedule.json")
-    if not os.path.exists(schedule_file):
-        print(f"❌ Không tìm thấy {schedule_file}")
-        print("   Chạy 'python run.py distribute' trước.")
+    if not os.path.isdir(config.input_dir):
+        print(f"❌ Thư mục input không tồn tại: {config.input_dir}")
         sys.exit(1)
 
-    with open(schedule_file, "r", encoding="utf-8") as f:
-        data = json.load(f)
-
-    schedule = data["schedule"]
-
-    # Load config
-    config = {}
-    if os.path.exists("config.json"):
-        with open("config.json", "r", encoding="utf-8") as f:
-            config = json.load(f)
-
-    # Xác định profiles cần export
-    if args.profile:
-        profiles_to_export = [args.profile]
-    else:
-        profiles_to_export = list(schedule.keys())
-
-    # Parse date
-    if args.date:
-        if "/" in args.date:
-            start = datetime.strptime(args.date, "%d/%m/%Y")
-        else:
-            start = datetime.strptime(args.date, "%Y-%m-%d")
-    else:
-        start = datetime.now()
-
-    # Get GPM profile names from API
-    gpm_names = {}
-    try:
-        import requests
-        gpm_port = config.get("gpm_port", 19995)
-        resp = requests.get(f"http://localhost:{gpm_port}/api/v3/profiles", timeout=5)
-        if resp.status_code == 200:
-            for p in resp.json().get("data", []):
-                gpm_names[p.get("id", "")] = p.get("name", "")
-            print(f"  ✅ GPM API: tìm thấy {len(gpm_names)} profiles")
-        else:
-            print(f"  ⚠️  GPM API trả về status {resp.status_code}")
-    except Exception as e:
-        print(f"  ⚠️  Không kết nối được GPM API: {e}")
-
-    # Build rows cho tất cả profiles
-    rows = []
-    schedule_dir = args.schedule
-
-    for profile_name in profiles_to_export:
-        if profile_name not in schedule:
-            print(f"⚠️  Profile '{profile_name}' không có trong schedule, skip")
-            continue
-
-        days_schedule = schedule[profile_name]
-
-        # Collect dates cho profile này
-        if args.all:
-            upload_dates = sorted(days_schedule.keys())
-        else:
-            upload_dates = []
-            for i in range(args.days):
-                d = start + timedelta(days=i)
-                upload_dates.append(d.strftime("%Y-%m-%d"))
-
-        # Get publish times
-        profile_config = config.get("profiles", {}).get(profile_name, {})
-        publish_times = profile_config.get("publish_times",
-                                           ["08:00", "10:00", "12:00", "14:00", "16:00", "18:00", "20:00"])
-
-        # Get GPM profile name: ưu tiên API name (cho tool auto), fallback config name, cuối cùng profile_name
-        gpm_id = profile_config.get("gpm_id", "") if isinstance(profile_config, dict) else ""
-        config_name = profile_config.get("name", "") if isinstance(profile_config, dict) else ""
-        gpm_profile_name = gpm_names.get(gpm_id, config_name or profile_name)
-
-        for date_str in upload_dates:
-            if date_str not in days_schedule:
-                continue
-
-            videos = days_schedule[date_str]
-            profile_dir = os.path.join(schedule_dir, profile_name)
-            day_folder = None
-            if os.path.exists(profile_dir):
-                for folder in sorted(Path(profile_dir).iterdir()):
-                    if folder.is_dir() and date_str in folder.name:
-                        day_folder = str(folder)
-                        break
-
-            for idx, video_name in enumerate(videos):
-                stem = Path(video_name).stem
-                video_path = os.path.join(day_folder, video_name) if day_folder else ""
-                thumb_path = os.path.join(day_folder, f"{stem}.jpg") if day_folder else ""
-                json_path = os.path.join(day_folder, f"{stem}.json") if day_folder else ""
-
-                title = stem
-                description = ""
-                if json_path and os.path.exists(json_path):
-                    with open(json_path, "r", encoding="utf-8") as f:
-                        meta = json.load(f)
-                    title = meta.get("title", stem)
-                    description = meta.get("description", "")
-
-                # Convert 24h → 12h
-                time_idx = idx % len(publish_times)
-                raw_time = publish_times[time_idx]
-                h, m = map(int, raw_time.split(":"))
-                if h == 0:
-                    publish_time = f"12:{m:02d} AM"
-                elif h < 12:
-                    publish_time = f"{h}:{m:02d} AM"
-                elif h == 12:
-                    publish_time = f"12:{m:02d} PM"
-                else:
-                    publish_time = f"{h-12}:{m:02d} PM"
-
-                # Resolve paths
-                if os.path.islink(video_path):
-                    video_path = os.path.realpath(video_path)
-                else:
-                    video_path = os.path.abspath(video_path) if video_path else ""
-
-                if os.path.islink(thumb_path):
-                    thumb_path = os.path.realpath(thumb_path)
-                else:
-                    thumb_path = os.path.abspath(thumb_path) if thumb_path else ""
-
-                if not os.path.exists(thumb_path):
-                    thumb_path = ""
-
-                # Format date: "June 1, 2026"
-                parsed_date = datetime.strptime(date_str, "%Y-%m-%d")
-                try:
-                    publish_date_fmt = parsed_date.strftime("%B %#d, %Y")
-                except ValueError:
-                    publish_date_fmt = parsed_date.strftime("%B %-d, %Y")
-
-                rows.append({
-                    "profile_name": gpm_profile_name,
-                    "video_path": video_path,
-                    "title": title[:100],
-                    "description": description[:5000],
-                    "thumbnail_path": thumb_path,
-                    "publish_date": publish_date_fmt,
-                    "publish_time": publish_time,
-                })
-
-    if not rows:
-        print(f"❌ Không có video để export")
+    if not os.path.isdir(config.background_dir):
+        print(f"❌ Thư mục backgrounds không tồn tại: {config.background_dir}")
         sys.exit(1)
 
-    # Write Excel
-    try:
-        from openpyxl import Workbook
-    except ImportError:
-        print("❌ Cần cài openpyxl: pip install openpyxl")
-        sys.exit(1)
-
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "Upload List"
-
-    headers = ["profile_name", "video_path", "title", "description", "thumbnail_path", "publish_date", "publish_time"]
-    ws.append(headers)
-
-    for row in rows:
-        ws.append([row[h] for h in headers])
-
-    # Tên file tự động theo ngày nếu dùng default
-    output_file = args.output
-    if output_file == "upload_list.xlsx":
-        if args.all:
-            output_file = "upload_all.xlsx"
-        else:
-            date_str_file = start.strftime("%d-%m-%Y")
-            output_file = f"upload_all_{date_str_file}.xlsx"
-    
-    wb.save(output_file)
-
-    print(f"✅ Tạo file Excel: {output_file}")
-    print(f"   👤 Profiles: {profiles_to_export}")
-    print(f"   🎬 Videos: {len(rows)}")
-    print(f"\n💡 Mở GPM Automate → set Input Excel = {output_file} → Run")
+    batch_process_textmask(config)
 
 
 def cmd_status(args):
@@ -588,29 +374,25 @@ def cmd_info(args):
     print(f"{__app_name__} v{__version__}")
     print()
     print("Available commands:")
-    print("  get-urls         Lấy danh sách URL video từ channel YouTube")
-    print("  download-yt      Tải video + metadata + thumbnail từ YouTube")
-    print("  get-twitch-urls  Lấy danh sách VOD URL từ channel Twitch")
-    print("  download-twitch  Tải video Twitch + cắt thành từng đoạn 1 tiếng")
-    print("  replace-bg       Thay nền video hàng loạt, giữ text transcript")
-    print("  distribute       Chia video vào folder theo ngày cho từng kênh")
-    print("  upload-gpm       Upload video lên YouTube qua GPM-Login (hẹn giờ)")
-    print("  list-profiles    Liệt kê GPM profiles (lấy ID cho config.json)")
-    print("  status           Xem tiến độ upload các kênh")
-    print("  detect           Auto-detect vùng text trong video")
+    print("  get-urls              Lấy danh sách URL video từ channel YouTube")
+    print("  download-yt           Tải video + metadata + thumbnail từ YouTube")
+    print("  get-twitch-urls       Lấy danh sách VOD URL từ channel Twitch")
+    print("  download-twitch       Tải video Twitch + cắt thành từng đoạn 1 tiếng")
+    print("  replace-bg            Thay nền video hàng loạt, giữ text transcript")
+    print("  replace-bg-colorkey   Thay nền video bằng color key (nền đồng màu)")
+    print("  replace-bg-textmask   Thay nền, giữ chữ trắng (detect text sáng)")
+    print("  distribute            Chia video vào folder theo ngày cho từng kênh")
+    print("  status                Xem tiến độ upload các kênh")
+    print("  detect                Auto-detect vùng text trong video")
     print()
     print("Flow:")
-    print("  get-urls → download-yt → replace-bg → distribute → upload-gpm")
+    print("  get-urls → download-yt → replace-bg → distribute")
     print()
     print("Quick start:")
-    print("  1. python run.py list-profiles          (lấy GPM ID)")
-    print("  2. Sửa config.json (set GPM ID + giờ)")
-    print("  3. python run.py get-urls --channel URL")
-    print("  4. python run.py download-yt --list urls.txt")
-    print("  5. python run.py replace-bg")
-    print("  6. python run.py distribute --profiles 'K1,K2,K3,K4,K5'")
-    print("  7. python run.py upload-gpm             (upload hôm nay)")
-    print("  7. python run.py upload-gpm --days 5    (upload trước 5 ngày)")
+    print("  1. python run.py get-urls --channel URL")
+    print("  2. python run.py download-yt --list urls.txt")
+    print("  3. python run.py replace-bg")
+    print("  4. python run.py distribute --profiles 'K1,K2,K3,K4,K5')")
     print()
     print("Run 'python -m vtool <command> --help' for details.")
 
@@ -703,12 +485,6 @@ def main():
                            help="Số pixel cắt bỏ mép dưới cùng (default: 6, tránh viền đen thừa)")
     p_replace.set_defaults(func=cmd_replace_bg)
 
-    # === Command: replace-subtitle ===
-    p_sub = subparsers.add_parser(
-        "replace-subtitle",
-        help="Tạo video mới: background + subtitle text (render lại từ .srt)"
-    )
-
     # === Command: download-subtitle ===
     p_dlsub = subparsers.add_parser(
         "download-subtitle",
@@ -720,18 +496,6 @@ def main():
     p_dlsub.add_argument("--lang", default="ja,en,vi", help="Ngôn ngữ ưu tiên (default: ja,en,vi)")
     p_dlsub.add_argument("--limit", type=int, default=None, help="Giới hạn số video")
     p_dlsub.set_defaults(func=cmd_download_subtitle)
-    p_sub.add_argument("--input", default="input_videos", help="Thư mục video input (cần có .srt)")
-    p_sub.add_argument("--backgrounds", default="backgrounds", help="Thư mục backgrounds")
-    p_sub.add_argument("--output", default="output_videos", help="Thư mục output")
-    p_sub.add_argument("--workers", type=int, default=2, help="Số worker (default: 2)")
-    p_sub.add_argument("--gpu", action="store_true", help="Dùng GPU NVIDIA")
-    p_sub.add_argument("--crf", type=int, default=23, help="CRF (default: 23)")
-    p_sub.add_argument("--preset", default="fast", help="FFmpeg preset (default: fast)")
-    p_sub.add_argument("--resolution", type=int, default=None, choices=[720, 1080], help="Scale output")
-    p_sub.add_argument("--limit", type=int, default=None, help="Giới hạn số video")
-    p_sub.add_argument("--sub-style", default="default", choices=["default", "banner"],
-                       help="Style subtitle: default (viền đen nhỏ) hoặc banner (nền đen full width, text to)")
-    p_sub.set_defaults(func=cmd_replace_subtitle)
 
     # === Command: distribute ===
     p_dist = subparsers.add_parser(
@@ -761,6 +525,41 @@ def main():
     p_colorkey.add_argument("--resolution", type=int, default=None,
                             choices=[720, 1080], help="Scale output (720/1080)")
     p_colorkey.set_defaults(func=cmd_replace_bg_colorkey)
+
+    # === Command: replace-bg-textmask ===
+    p_textmask = subparsers.add_parser(
+        "replace-bg-textmask",
+        help="Thay nền video, giữ lại chữ trắng (detect text sáng → mask → overlay lên BG mới)"
+    )
+    p_textmask.add_argument("--input", default="input_videos", help="Thư mục video input")
+    p_textmask.add_argument("--backgrounds", default="backgrounds", help="Thư mục backgrounds")
+    p_textmask.add_argument("--output", default="output_videos", help="Thư mục output")
+    p_textmask.add_argument("--workers", type=int, default=2, help="Số worker (default: 2)")
+    p_textmask.add_argument("--threshold", type=int, default=200,
+                            help="Ngưỡng brightness giữ text 0-255 (default: 200, cao=chỉ giữ pixel rất trắng)")
+    p_textmask.add_argument("--min-brightness", type=int, default=180,
+                            help="Ngưỡng soft zone dưới threshold (default: 180, giữ viền text mềm)")
+    p_textmask.add_argument("--softness", type=int, default=10,
+                            help="Độ mượt viền (default: 10)")
+    p_textmask.add_argument("--expand", type=int, default=1,
+                            help="Mở rộng mask bao nhiêu pixel (default: 1, giữ viền text đầy đủ)")
+    p_textmask.add_argument("--text-region", default="full", choices=["full", "bottom"],
+                            help="Vùng detect: full=toàn frame, bottom=chỉ phần dưới (default: full)")
+    p_textmask.add_argument("--text-ratio", type=float, default=0.45,
+                            help="Nếu --text-region=bottom, giữ bao nhiêu %% phía dưới (default: 0.45)")
+    p_textmask.add_argument("--bar-opacity", type=float, default=0.6,
+                            help="Độ mờ dải đen mới phía dưới (0=không có, 0.6=mờ 60%%, 1.0=đen hoàn toàn, default: 0.6)")
+    p_textmask.add_argument("--bar-ratio", type=float, default=0.25,
+                            help="Chiều cao dải đen = bao nhiêu %% frame (default: 0.25 = 25%% dưới cùng)")
+    p_textmask.add_argument("--crf", type=int, default=23, help="CRF 18-28 (default: 23)")
+    p_textmask.add_argument("--preset", default="fast", help="FFmpeg preset (default: fast)")
+    p_textmask.add_argument("--gpu", action="store_true", help="Dùng GPU")
+    p_textmask.add_argument("--format", default="mp4", help="Output format")
+    p_textmask.add_argument("--limit", type=int, default=None, help="Giới hạn số video")
+    p_textmask.add_argument("--resolution", type=int, default=None,
+                            choices=[720, 1080], help="Scale output (720/1080)")
+    p_textmask.set_defaults(func=cmd_replace_bg_textmask)
+
     p_dist.add_argument("--input", default="output_videos", help="Thư mục video đã thay nền")
     p_dist.add_argument("--output", default="schedules", help="Thư mục output schedule")
     p_dist.add_argument("--profiles", default="channel_1",
@@ -773,51 +572,6 @@ def main():
     p_dist.add_argument("--append", action="store_true",
                         help="Nối thêm video mới vào schedule cũ (không ghi đè)")
     p_dist.set_defaults(func=cmd_distribute)
-
-    # === Command: upload-gpm ===
-    p_upload = subparsers.add_parser(
-        "upload-gpm",
-        help="Upload video lên YouTube qua GPM-Login"
-    )
-    p_upload.add_argument("--schedule", default="schedules", help="Thư mục schedule")
-    p_upload.add_argument("--config", default="config.json", help="File config (default: config.json)")
-    p_upload.add_argument("--days", type=int, default=1,
-                          help="Số ngày upload (1=hôm nay, 5=hôm nay + 4 ngày tới)")
-    p_upload.add_argument("--date", default=None,
-                          help="Ngày cụ thể cần upload (format: 2026-05-30 hoặc 30/05/2026)")
-    p_upload.add_argument("--profiles-map", default=None,
-                          help="Map kênh:GPM_ID (override config.json)")
-    p_upload.add_argument("--visibility", default=None,
-                          choices=["public", "unlisted", "private", "schedule"],
-                          help="Visibility (default: schedule = hẹn giờ)")
-    p_upload.add_argument("--times", default=None,
-                          help="Giờ publish, override config.json "
-                               "(vd: '08:00,10:00,12:00,14:00,16:00,18:00,20:00')")
-    p_upload.add_argument("--port", type=int, default=None, help="GPM API port (override config.json)")
-    p_upload.set_defaults(func=cmd_upload_gpm)
-
-    # === Command: list-profiles ===
-    p_list = subparsers.add_parser(
-        "list-profiles",
-        help="Liệt kê tất cả GPM-Login profiles (lấy ID để set config)"
-    )
-    p_list.add_argument("--port", type=int, default=19995, help="GPM API port")
-    p_list.set_defaults(func=cmd_list_profiles)
-
-    # === Command: export-upload ===
-    p_export = subparsers.add_parser(
-        "export-upload",
-        help="Tạo file Excel upload list cho GPM Automate"
-    )
-    p_export.add_argument("--date", default=None,
-                          help="Ngày bắt đầu (2026-05-30 hoặc 30/05/2026)")
-    p_export.add_argument("--days", type=int, default=1, help="Số ngày (default: 1)")
-    p_export.add_argument("--all", action="store_true", help="Export tất cả ngày")
-    p_export.add_argument("--profile", default=None,
-                          help="Tên profile (K1, K2...) hoặc bỏ trống = tất cả kênh")
-    p_export.add_argument("--schedule", default="schedules", help="Thư mục schedule")
-    p_export.add_argument("--output", default="upload_list.xlsx", help="File Excel output")
-    p_export.set_defaults(func=cmd_export_upload)
 
     # === Command: status ===
     p_status = subparsers.add_parser(
