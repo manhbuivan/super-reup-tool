@@ -27,7 +27,7 @@ class TextMaskConfig:
 
     # Dải nền đen mới (drawbox) để chữ nổi trên BG mới
     bar_opacity: float = 0.6   # Độ mờ dải đen phía dưới (0=không có, 0.6=mờ 60%, 1.0=đen hoàn toàn)
-    bar_ratio: float = 0.25    # Chiều cao dải đen = bao nhiêu % frame (0.25 = 25% phía dưới)
+    bar_ratio: float = 0.35    # Chiều cao dải đen = bao nhiêu % frame (0.35 = 35% phía dưới)
 
     # Options
     limit: int = None

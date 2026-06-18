@@ -39,6 +39,7 @@ def _build_textmask_filter(width: int, height: int, config: TextMaskConfig) -> s
     - Background mới full frame
     - Vẽ dải đen mờ (drawbox) phía dưới để text nổi
     - Dùng lumakey để xoá pixel tối (background) và giữ pixel sáng (text trắng)
+    - Chỉ apply lumakey ở vùng text (phần dưới), phần trên dùng BG mới 100%
     - Overlay text trắng lên background mới
     
     Kết quả: BG mới + dải đen mờ + chữ trắng gốc. Hoàn toàn mới, không dính gì BG cũ.
@@ -60,20 +61,21 @@ def _build_textmask_filter(width: int, height: int, config: TextMaskConfig) -> s
     # softness cho viền mượt
     luma_softness = 0.1
 
-    # Xác định vùng crop text nếu chỉ giữ phần dưới
+    # Luôn crop phần dưới để tránh giữ nhầm vùng sáng ở phần trên (người, đồ vật...)
+    # text_region=full vẫn chỉ lấy phần dưới theo bar_ratio (hoặc text_ratio)
     if config.text_region == "bottom":
         text_height = int(height * config.text_ratio)
-        text_height = text_height if text_height % 2 == 0 else text_height + 1
-        crop_y = height - text_height
-        overlay_y = crop_y
     else:
-        text_height = height
-        crop_y = 0
-        overlay_y = 0
+        # Khi full, dùng bar_ratio để xác định vùng text (thường text ở phần dưới)
+        text_height = int(height * config.bar_ratio)
+    
+    text_height = text_height if text_height % 2 == 0 else text_height + 1
+    crop_y = height - text_height
+    overlay_y = crop_y
 
     filter_parts = []
 
-    # Step 1: Scale background full frame + drawbox đen mờ phía dưới
+    # Step 1: Scale background full frame + drawbox đen mờ ở vùng text
     if bar_opacity > 0:
         filter_parts.append(
             f"[1:v]scale={width}:{height}:force_original_aspect_ratio=increase,"
@@ -86,20 +88,13 @@ def _build_textmask_filter(width: int, height: int, config: TextMaskConfig) -> s
             f"crop={width}:{height}[bg]"
         )
 
-    # Step 2: Tạo text mask từ video gốc bằng lumakey
-    # lumakey: xoá pixel tối (dưới threshold), giữ pixel sáng (text trắng)
-    if config.text_region == "bottom":
-        # Crop vùng text trước, rồi apply lumakey
-        filter_parts.append(
-            f"[0:v]crop={width}:{text_height}:0:{crop_y},"
-            f"lumakey=threshold={luma_threshold}:tolerance={luma_tolerance}:softness={luma_softness}[textmasked]"
-        )
-    else:
-        filter_parts.append(
-            f"[0:v]lumakey=threshold={luma_threshold}:tolerance={luma_tolerance}:softness={luma_softness}[textmasked]"
-        )
+    # Step 2: Crop vùng text (phần dưới) từ video gốc, apply lumakey
+    filter_parts.append(
+        f"[0:v]crop={width}:{text_height}:0:{crop_y},"
+        f"lumakey=threshold={luma_threshold}:tolerance={luma_tolerance}:softness={luma_softness}[textmasked]"
+    )
 
-    # Step 3: Overlay text lên BG (đã có dải đen mờ)
+    # Step 3: Overlay text lên BG ở vị trí phần dưới
     filter_parts.append(
         f"[bg][textmasked]overlay=0:{overlay_y}[out]"
     )

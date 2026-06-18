@@ -549,8 +549,8 @@ def main():
                             help="Nếu --text-region=bottom, giữ bao nhiêu %% phía dưới (default: 0.45)")
     p_textmask.add_argument("--bar-opacity", type=float, default=0.6,
                             help="Độ mờ dải đen mới phía dưới (0=không có, 0.6=mờ 60%%, 1.0=đen hoàn toàn, default: 0.6)")
-    p_textmask.add_argument("--bar-ratio", type=float, default=0.25,
-                            help="Chiều cao dải đen = bao nhiêu %% frame (default: 0.25 = 25%% dưới cùng)")
+    p_textmask.add_argument("--bar-ratio", type=float, default=0.35,
+                            help="Chiều cao dải đen + vùng text = bao nhiêu %% frame (default: 0.35 = 35%% dưới cùng)")
     p_textmask.add_argument("--crf", type=int, default=23, help="CRF 18-28 (default: 23)")
     p_textmask.add_argument("--preset", default="fast", help="FFmpeg preset (default: fast)")
     p_textmask.add_argument("--gpu", action="store_true", help="Dùng GPU")
