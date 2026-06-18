@@ -53,13 +53,15 @@ def _build_textmask_filter(width: int, height: int, config: TextMaskConfig) -> s
     bar_height = int(height * bar_ratio)
     bar_y = height - bar_height
 
-    # Convert threshold 0-255 → lumakey threshold 0.0-1.0
-    # lumakey xoá pixel có luma < threshold → giữ pixel sáng (text)
-    luma_threshold = threshold / 255.0
-    # tolerance: vùng chuyển tiếp mềm
-    luma_tolerance = (threshold - min_bright) / 255.0
-    # softness cho viền mượt
-    luma_softness = 0.1
+    # Convert threshold 0-255 → lumakey parameters
+    # FFmpeg lumakey: xoá pixel có luma GẦN threshold (trong khoảng threshold ± tolerance)
+    # Ta muốn xoá pixel TỐI (nền đen/xám) → threshold thấp, tolerance cao
+    # threshold=0: target pixel đen
+    # tolerance: bao nhiêu luma range bị xoá (từ 0 đến tolerance*255 sẽ bị xoá)
+    # Ví dụ: min_brightness=180 → xoá tất cả pixel có luma < 180/255 ≈ 0.7
+    luma_threshold = 0.0  # Target: pixel đen (luma=0)
+    luma_tolerance = min_bright / 255.0  # Xoá tất cả pixel từ 0 đến min_bright
+    luma_softness = (threshold - min_bright) / 255.0  # Vùng fade mềm
 
     # Luôn crop phần dưới để tránh giữ nhầm vùng sáng ở phần trên (người, đồ vật...)
     # text_region=full vẫn chỉ lấy phần dưới theo bar_ratio (hoặc text_ratio)
