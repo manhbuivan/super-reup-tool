@@ -23,6 +23,7 @@ def distribute_videos(
     gap_days: int = 10,
     start_date: str = None,
     append: bool = False,
+    exclusive: bool = False,
 ):
     """
     Phân phối video vào các folder theo ngày cho từng profile.
@@ -102,12 +103,15 @@ def distribute_videos(
     print(f"📂 Input: {input_dir}/ ({total_videos} video mới)")
     print(f"👤 Profiles: {num_profiles} kênh")
     print(f"📅 Per day: {per_day} video/kênh/ngày")
-    print(f"🔄 Mode: {'APPEND (nối tiếp)' if append else 'Tạo mới'}")
+    print(f"🔄 Mode: {'EXCLUSIVE (chia riêng)' if exclusive else 'APPEND (nối tiếp)' if append else 'Xoay vòng'}")
     print(f"📆 Start: {start.strftime('%Y-%m-%d')}")
     print("=" * 60)
     
     # Phân phối video cho từng profile
-    schedule = _create_schedule(videos, profiles, per_day, gap_days, start)
+    if exclusive:
+        schedule = _create_schedule_exclusive(videos, profiles, per_day, start)
+    else:
+        schedule = _create_schedule(videos, profiles, per_day, gap_days, start)
     
     # Tạo folder structure
     os.makedirs(output_dir, exist_ok=True)
@@ -178,6 +182,56 @@ def _get_video_list(input_dir: str) -> list:
             videos.append(f.name)
     
     return videos
+
+
+def _create_schedule_exclusive(
+    videos: list,
+    profiles: list,
+    per_day: int,
+    start: datetime,
+) -> dict:
+    """
+    Tạo schedule chia riêng - mỗi video chỉ thuộc 1 kênh duy nhất.
+    
+    Logic:
+    - Chia đều video cho N kênh (mỗi kênh được ~total/N video)
+    - Không có video trùng giữa các kênh
+    - Ví dụ 90 video, 3 kênh, per_day=3:
+      K4: video 1-30, chia thành 10 ngày
+      K5: video 31-60, chia thành 10 ngày
+      K6: video 61-90, chia thành 10 ngày
+    """
+    num_profiles = len(profiles)
+    total_videos = len(videos)
+    
+    # Chia đều video cho từng kênh
+    chunk_size = total_videos // num_profiles
+    remainder = total_videos % num_profiles
+    
+    chunks = []
+    idx = 0
+    for i in range(num_profiles):
+        # Kênh đầu lấy thêm phần dư
+        size = chunk_size + (1 if i < remainder else 0)
+        chunks.append(videos[idx:idx + size])
+        idx += size
+    
+    # Tạo schedule theo ngày cho mỗi kênh
+    schedule = {}
+    
+    for i, profile in enumerate(profiles):
+        vids = chunks[i]
+        schedule[profile] = {}
+        day_offset = 0
+        
+        for j in range(0, len(vids), per_day):
+            batch = vids[j:j + per_day]
+            date = start + timedelta(days=day_offset)
+            date_str = date.strftime("%Y-%m-%d")
+            schedule[profile][date_str] = batch
+            day_offset += 1
+    
+    return schedule
 
 
 def _create_schedule(

@@ -157,6 +157,7 @@ def cmd_distribute(args):
         gap_days=args.gap,
         start_date=args.start_date,
         append=args.append,
+        exclusive=args.exclusive,
     )
 
 
@@ -764,6 +765,8 @@ def main():
                         help="Ngày bắt đầu YYYY-MM-DD (default: hôm nay)")
     p_dist.add_argument("--append", action="store_true",
                         help="Nối thêm video mới vào schedule cũ (không ghi đè)")
+    p_dist.add_argument("--exclusive", action="store_true",
+                        help="Chia riêng - mỗi video chỉ thuộc 1 kênh (không trùng)")
     p_dist.set_defaults(func=cmd_distribute)
 
     # === Command: export-upload ===
