@@ -24,6 +24,7 @@ def distribute_videos(
     start_date: str = None,
     append: bool = False,
     exclusive: bool = False,
+    shuffle: bool = False,
 ):
     """
     Phân phối video vào các folder theo ngày cho từng profile.
@@ -109,7 +110,7 @@ def distribute_videos(
     
     # Phân phối video cho từng profile
     if exclusive:
-        schedule = _create_schedule_exclusive(videos, profiles, per_day, start)
+        schedule = _create_schedule_exclusive(videos, profiles, per_day, start, shuffle)
     else:
         schedule = _create_schedule(videos, profiles, per_day, gap_days, start)
     
@@ -189,6 +190,7 @@ def _create_schedule_exclusive(
     profiles: list,
     per_day: int,
     start: datetime,
+    shuffle: bool = False,
 ) -> dict:
     """
     Tạo schedule chia riêng - mỗi video chỉ thuộc 1 kênh duy nhất.
@@ -196,10 +198,7 @@ def _create_schedule_exclusive(
     Logic:
     - Chia đều video cho N kênh (mỗi kênh được ~total/N video)
     - Không có video trùng giữa các kênh
-    - Ví dụ 90 video, 3 kênh, per_day=3:
-      K4: video 1-30, chia thành 10 ngày
-      K5: video 31-60, chia thành 10 ngày
-      K6: video 61-90, chia thành 10 ngày
+    - Nếu shuffle=True, xáo trộn thứ tự video trong mỗi kênh
     """
     num_profiles = len(profiles)
     total_videos = len(videos)
@@ -215,6 +214,11 @@ def _create_schedule_exclusive(
         size = chunk_size + (1 if i < remainder else 0)
         chunks.append(videos[idx:idx + size])
         idx += size
+    
+    # Shuffle nếu cần
+    if shuffle:
+        for chunk in chunks:
+            random.shuffle(chunk)
     
     # Tạo schedule theo ngày cho mỗi kênh
     schedule = {}

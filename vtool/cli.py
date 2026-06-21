@@ -158,6 +158,7 @@ def cmd_distribute(args):
         start_date=args.start_date,
         append=args.append,
         exclusive=args.exclusive,
+        shuffle=args.shuffle,
     )
 
 
@@ -274,8 +275,9 @@ def cmd_export_upload(args):
     gpm_names = {}
     try:
         import requests
+        gpm_host = config.get("gpm_host", "127.0.0.1")
         gpm_port = config.get("gpm_port", 19995)
-        resp = requests.get(f"http://localhost:{gpm_port}/api/v3/profiles", timeout=5)
+        resp = requests.get(f"http://{gpm_host}:{gpm_port}/api/v3/profiles", timeout=5)
         if resp.status_code == 200:
             for p in resp.json().get("data", []):
                 gpm_names[p.get("id", "")] = p.get("name", "")
@@ -562,6 +564,81 @@ def cmd_check(args):
     print("=" * 60)
 
 
+def cmd_gpm_profiles(args):
+    """Command: Lấy danh sách profile từ GPM-Login API."""
+    import json
+    import os
+    import requests
+
+    # Load config
+    config = {}
+    if os.path.exists("config.json"):
+        with open("config.json", "r", encoding="utf-8") as f:
+            config = json.load(f)
+
+    host = config.get("gpm_host", "127.0.0.1")
+    port = config.get("gpm_port", 19995)
+    url = f"http://{host}:{port}/api/v3/profiles"
+
+    print(f"🔍 Đang kết nối GPM API: {url}")
+    print()
+
+    try:
+        resp = requests.get(url, timeout=10)
+    except requests.exceptions.ConnectionError:
+        print(f"❌ Không kết nối được GPM API tại {host}:{port}")
+        print(f"   → Kiểm tra GPM-Login đã mở chưa")
+        print(f"   → Kiểm tra port trong config.json (gpm_port: {port})")
+        sys.exit(1)
+    except Exception as e:
+        print(f"❌ Lỗi: {e}")
+        sys.exit(1)
+
+    if resp.status_code != 200:
+        print(f"❌ GPM API trả về status {resp.status_code}")
+        sys.exit(1)
+
+    data = resp.json()
+    if not data.get("success"):
+        print(f"❌ GPM API trả về lỗi: {data}")
+        sys.exit(1)
+
+    profiles = data.get("data", [])
+    if not profiles:
+        print("⚠️  Không có profile nào trong GPM")
+        return
+
+    # Print table
+    print(f"{'#':<4} {'ID':<38} {'Name':<30} {'Proxy':<45} {'Notes'}")
+    print("─" * 140)
+
+    for i, p in enumerate(profiles, 1):
+        pid = p.get("id", "")
+        name = p.get("name", "")
+        raw_proxy = p.get("raw_proxy", "") or ""
+        notes = p.get("notes", "") or p.get("note", "") or ""
+        # Truncate nếu quá dài
+        if len(raw_proxy) > 43:
+            raw_proxy = raw_proxy[:40] + "..."
+        if len(name) > 28:
+            name = name[:25] + "..."
+        if len(notes) > 30:
+            notes = notes[:27] + "..."
+        print(f"{i:<4} {pid:<38} {name:<30} {raw_proxy:<45} {notes}")
+
+    print("─" * 140)
+    print(f"📊 Tổng: {len(profiles)} profiles")
+
+    # Hiển thị profiles đang dùng trong config
+    config_profiles = config.get("profiles", {})
+    if config_profiles:
+        print(f"\n📋 Profiles trong config.json:")
+        for key, val in config_profiles.items():
+            gpm_id = val.get("gpm_id", "")
+            matched = "✅" if gpm_id in [p.get("id") for p in profiles] else "❌ (không tìm thấy)"
+            print(f"   {key}: {gpm_id}  {matched}")
+
+
 def cmd_info(args):
     """Command: Hiển thị thông tin tool."""
     from vtool import __version__, __app_name__
@@ -767,7 +844,16 @@ def main():
                         help="Nối thêm video mới vào schedule cũ (không ghi đè)")
     p_dist.add_argument("--exclusive", action="store_true",
                         help="Chia riêng - mỗi video chỉ thuộc 1 kênh (không trùng)")
+    p_dist.add_argument("--shuffle", action="store_true",
+                        help="Xáo trộn thứ tự video (dùng kèm --exclusive)")
     p_dist.set_defaults(func=cmd_distribute)
+
+    # === Command: gpm-profiles ===
+    p_gpm = subparsers.add_parser(
+        "gpm-profiles",
+        help="Lấy danh sách profile từ GPM-Login API (dạng bảng)"
+    )
+    p_gpm.set_defaults(func=cmd_gpm_profiles)
 
     # === Command: export-upload ===
     p_export = subparsers.add_parser(
