@@ -238,17 +238,38 @@ def cmd_export_upload(args):
     import os
     from datetime import datetime, timedelta
     from pathlib import Path
+    import glob as glob_mod
 
-    schedule_file = os.path.join(args.schedule, "schedule.json")
-    if not os.path.exists(schedule_file):
-        print(f"❌ Không tìm thấy {schedule_file}")
-        print("   Chạy 'python run.py distribute' trước.")
+    # Determine schedule folders to process
+    if args.all_schedules:
+        schedule_dirs = sorted(glob_mod.glob("schedule_*"))
+        if not schedule_dirs:
+            print("❌ Không tìm thấy folder schedule_* nào")
+            sys.exit(1)
+        print(f"📂 Tìm thấy {len(schedule_dirs)} schedule folders: {schedule_dirs}")
+    else:
+        schedule_dirs = [args.schedule]
+
+    # Merge schedules from all folders
+    schedule = {}
+    for sdir in schedule_dirs:
+        schedule_file = os.path.join(sdir, "schedule.json")
+        if not os.path.exists(schedule_file):
+            print(f"⚠️  Không tìm thấy {schedule_file}, skip")
+            continue
+        with open(schedule_file, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        for profile_name, days in data.get("schedule", {}).items():
+            if profile_name not in schedule:
+                schedule[profile_name] = {"days": days, "dir": sdir}
+            else:
+                # Merge days
+                for day, videos in days.items():
+                    schedule[profile_name]["days"][day] = videos
+
+    if not schedule:
+        print("❌ Không có schedule nào để export")
         sys.exit(1)
-
-    with open(schedule_file, "r", encoding="utf-8") as f:
-        data = json.load(f)
-
-    schedule = data["schedule"]
 
     # Load config
     config = {}
@@ -289,14 +310,14 @@ def cmd_export_upload(args):
 
     # Build rows cho tất cả profiles
     rows = []
-    schedule_dir = args.schedule
 
     for profile_name in profiles_to_export:
         if profile_name not in schedule:
             print(f"⚠️  Profile '{profile_name}' không có trong schedule, skip")
             continue
 
-        days_schedule = schedule[profile_name]
+        days_schedule = schedule[profile_name]["days"]
+        schedule_dir = schedule[profile_name]["dir"]
 
         # Collect dates cho profile này
         if args.all:
@@ -416,7 +437,8 @@ def cmd_export_upload(args):
             output_file = "upload_all.xlsx"
         else:
             date_str_file = start.strftime("%d-%m-%Y")
-            output_file = f"upload_all_{date_str_file}.xlsx"
+            profile_suffix = "K" + "".join(p.replace("K","") for p in profiles_to_export)
+            output_file = f"upload_{profile_suffix}_all_{date_str_file}.xlsx"
 
     wb.save(output_file)
 
@@ -866,7 +888,9 @@ def main():
     p_export.add_argument("--all", action="store_true", help="Export tất cả ngày")
     p_export.add_argument("--profile", default=None,
                           help="Tên profile (K1, K2...) hoặc bỏ trống = tất cả kênh")
-    p_export.add_argument("--schedule", default="schedules", help="Thư mục schedule")
+    p_export.add_argument("--schedule", default="schedules", help="Thư mục schedule (hoặc dùng --all-schedules)")
+    p_export.add_argument("--all-schedules", action="store_true",
+                          help="Export tất cả schedule_* folders vào 1 file Excel")
     p_export.add_argument("--output", default="upload_list.xlsx", help="File Excel output")
     p_export.set_defaults(func=cmd_export_upload)
 
