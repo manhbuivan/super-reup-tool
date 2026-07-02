@@ -26,6 +26,7 @@
       "publish_times": ["08:00", "10:30", "12:30", "14:30", "17:00", "19:30", "21:30"]
     }
   },
+  "export_schedules": ["schedule_1", "schedule_2", "schedule_3"],
   "per_day": 7,
   "gap_days": 10,
   "gpm_port": 19995,

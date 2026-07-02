@@ -242,11 +242,22 @@ def cmd_export_upload(args):
 
     # Determine schedule folders to process
     if args.all_schedules:
-        schedule_dirs = sorted(glob_mod.glob("schedule_*"))
+        # Ưu tiên đọc từ config.json nếu có
+        config_pre = {}
+        if os.path.exists("config.json"):
+            with open("config.json", "r", encoding="utf-8") as f:
+                config_pre = json.load(f)
+
+        export_dirs = config_pre.get("export_schedules", None)
+        if export_dirs:
+            schedule_dirs = [d for d in export_dirs if os.path.exists(d)]
+        else:
+            schedule_dirs = sorted(glob_mod.glob("schedule_*"))
+
         if not schedule_dirs:
-            print("❌ Không tìm thấy folder schedule_* nào")
+            print("❌ Không tìm thấy folder schedule nào")
             sys.exit(1)
-        print(f"📂 Tìm thấy {len(schedule_dirs)} schedule folders: {schedule_dirs}")
+        print(f"📂 Export từ {len(schedule_dirs)} schedule folders: {schedule_dirs}")
     else:
         schedule_dirs = [args.schedule]
 
