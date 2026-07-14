@@ -25,7 +25,7 @@ def get_channel_urls(channel_url: str, limit: int = None, output_file: str = "ur
     print(f"🔍 Đang lấy danh sách video từ: {channel_url}")
     
     cmd = [
-        "yt-dlp",
+        sys.executable, "-m", "yt_dlp",
         "--flat-playlist",
         "--print", "url",
         channel_url
@@ -109,7 +109,7 @@ def _download_single(url: str, output_dir: str, quality: str, subtitle: bool = F
     try:
         # Bước 1: Lấy metadata trước
         meta_cmd = [
-            "yt-dlp",
+            sys.executable, "-m", "yt_dlp",
             "--dump-json",
             "--no-download",
             url
@@ -158,7 +158,7 @@ def _download_single(url: str, output_dir: str, quality: str, subtitle: bool = F
         format_str = _get_format_string(quality)
         
         dl_cmd = [
-            "yt-dlp",
+            sys.executable, "-m", "yt_dlp",
             "-f", format_str,
             "--merge-output-format", "mp4",
             "-o", video_path,
@@ -169,7 +169,7 @@ def _download_single(url: str, output_dir: str, quality: str, subtitle: bool = F
         # Tải subtitle nếu bật
         if subtitle:
             sub_cmd = [
-                "yt-dlp",
+                sys.executable, "-m", "yt_dlp",
                 "--write-subs", "--write-auto-subs",
                 "--sub-lang", "ja,en,vi",
                 "--sub-format", "srt",
