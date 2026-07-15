@@ -51,7 +51,7 @@ def get_channel_urls(channel_url: str, limit: int = None, output_file: str = "ur
     return urls
 
 
-def download_videos(urls: list, output_dir: str = "input_videos", quality: str = "best", subtitle: bool = False) -> list:
+def download_videos(urls: list, output_dir: str = "input_videos", quality: str = "best", subtitle: bool = False, browser: str = None) -> list:
     """
     Tải video + metadata + thumbnail từ danh sách URL.
     
@@ -84,7 +84,7 @@ def download_videos(urls: list, output_dir: str = "input_videos", quality: str =
     for i, url in enumerate(urls, 1):
         print(f"\n  [{i}/{total}] Downloading: {url}")
         
-        result = _download_single(url, output_dir, quality, subtitle)
+        result = _download_single(url, output_dir, quality, subtitle, browser)
         results.append(result)
         
         if result["status"] == "success":
@@ -101,7 +101,7 @@ def download_videos(urls: list, output_dir: str = "input_videos", quality: str =
     return results
 
 
-def _download_single(url: str, output_dir: str, quality: str, subtitle: bool = False) -> dict:
+def _download_single(url: str, output_dir: str, quality: str, subtitle: bool = False, browser: str = None) -> dict:
     """Tải 1 video + metadata + thumbnail."""
     
     result = {"url": url, "status": "success", "title": "", "error": None}
@@ -114,8 +114,10 @@ def _download_single(url: str, output_dir: str, quality: str, subtitle: bool = F
             "--no-download",
             "--sleep-interval", "3",
             "--max-sleep-interval", "8",
-            url
         ]
+        if browser:
+            meta_cmd.extend(["--cookies-from-browser", browser])
+        meta_cmd.append(url)
         meta_result = subprocess.run(meta_cmd, capture_output=True, text=True, timeout=60)
         
         if meta_result.returncode != 0:
@@ -167,8 +169,10 @@ def _download_single(url: str, output_dir: str, quality: str, subtitle: bool = F
             "--max-sleep-interval", "15",
             "-o", video_path,
             "--no-playlist",
-            url
         ]
+        if browser:
+            dl_cmd.extend(["--cookies-from-browser", browser])
+        dl_cmd.append(url)
         
         # Tải subtitle nếu bật
         if subtitle:

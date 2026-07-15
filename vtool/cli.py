@@ -84,7 +84,7 @@ def cmd_download_yt(args):
     if args.limit:
         urls = urls[:args.limit]
 
-    download_videos(urls, output_dir=args.output, quality=args.quality, subtitle=args.subtitle)
+    download_videos(urls, output_dir=args.output, quality=args.quality, subtitle=args.subtitle, browser=args.browser)
 
 
 def cmd_get_twitch_urls(args):
@@ -730,6 +730,7 @@ def main():
                             help="Chất lượng video (default: best)")
     p_download.add_argument("--limit", type=int, default=None, help="Giới hạn số video tải")
     p_download.add_argument("--subtitle", action="store_true", help="Tải subtitle (.srt)")
+    p_download.add_argument("--browser", default=None, help="Dùng cookies từ browser (chrome, edge, firefox)")
     p_download.set_defaults(func=cmd_download_yt)
 
     # === Command: get-twitch-urls ===
