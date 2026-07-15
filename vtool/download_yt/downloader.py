@@ -112,6 +112,8 @@ def _download_single(url: str, output_dir: str, quality: str, subtitle: bool = F
             sys.executable, "-m", "yt_dlp",
             "--dump-json",
             "--no-download",
+            "--sleep-interval", "3",
+            "--max-sleep-interval", "8",
             url
         ]
         meta_result = subprocess.run(meta_cmd, capture_output=True, text=True, timeout=60)
@@ -161,6 +163,8 @@ def _download_single(url: str, output_dir: str, quality: str, subtitle: bool = F
             sys.executable, "-m", "yt_dlp",
             "-f", format_str,
             "--merge-output-format", "mp4",
+            "--sleep-interval", "5",
+            "--max-sleep-interval", "15",
             "-o", video_path,
             "--no-playlist",
             url
