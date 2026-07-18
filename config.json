@@ -1,35 +1,74 @@
 {
   "profiles": {
     "K1": {
-      "gpm_id": "ca7ad9fc-437e-4537-a992-1993e9d1b10a",
+      "gpm_id": "a8d3c226-cad9-45af-9f7c-5a872a6b17d7",
       "name": "Kênh 1",
-      "publish_times": ["07:00", "09:00", "11:00", "13:00", "15:00", "17:00", "19:00"]
+      "publish_times": ["05:00", "18:00"]
     },
     "K2": {
-      "gpm_id": "YOUR_GPM_PROFILE_ID_HERE",
+      "gpm_id": "53fd0d03-a1f8-4903-a0b2-7582bba96b62",
       "name": "Kênh 2",
-      "publish_times": ["08:00", "10:00", "12:00", "14:00", "16:00", "18:00", "20:00"]
+      "publish_times": ["05:30", "18:30"]
     },
     "K3": {
-      "gpm_id": "YOUR_GPM_PROFILE_ID_HERE",
+      "gpm_id": "7e2d0ce8-fb1c-4cf2-9fc2-8bb03f804574",
       "name": "Kênh 3",
-      "publish_times": ["06:00", "08:30", "11:00", "13:30", "16:00", "18:30", "21:00"]
+      "publish_times": ["06:00", "19:00"]
     },
     "K4": {
-      "gpm_id": "YOUR_GPM_PROFILE_ID_HERE",
+      "gpm_id": "49310f34-7bea-4751-aeda-e9dbfe366167",
       "name": "Kênh 4",
-      "publish_times": ["07:30", "09:30", "11:30", "14:00", "16:30", "19:00", "21:00"]
+      "publish_times": ["06:30", "19:30"]
     },
     "K5": {
-      "gpm_id": "YOUR_GPM_PROFILE_ID_HERE",
+      "gpm_id": "041b3d7a-b9de-44f9-8938-f15f19db52ca",
       "name": "Kênh 5",
-      "publish_times": ["08:00", "10:30", "12:30", "14:30", "17:00", "19:30", "21:30"]
+      "publish_times": ["07:00", "20:00"]
+    },
+    "K6": {
+      "gpm_id": "cc07049c-cb94-4c05-878c-e43aacee804c",
+      "name": "Kênh 6",
+      "publish_times": ["07:30", "20:30"]
+    },
+    "K7": {
+      "gpm_id": "9dbe96a4-7461-46db-9d81-24aea949a366",
+      "name": "Kênh 7",
+      "publish_times": ["08:00", "21:00"]
+    },
+    "K8": {
+      "gpm_id": "c8fdb836-6b9f-43c9-80b3-1884f3d55eb4",
+      "name": "Kênh 8",
+      "publish_times": ["08:30", "21:30"]
+    },
+    "K9": {
+      "gpm_id": "b96e50f4-6e0b-4e07-98b0-c107c2332e75",
+      "name": "Kênh 9",
+      "publish_times": ["09:00", "22:00"]
+    },
+    "K10": {
+      "gpm_id": "aa113c46-12ce-4552-b7ab-3b85539316d0",
+      "name": "Kênh sếp 1",
+      "publish_times": ["09:30", "22:30"]
+    },
+    "K11": {
+      "gpm_id": "c4b9b5ea-8100-47e4-bcf0-5b4e66cc50b3",
+      "name": "Kênh sếp 2",
+      "publish_times": ["10:00", "23:00"]
+    },
+    "K12": {
+      "gpm_id": "e32b9067-76f6-4b07-9ef2-6550ef4b1306",
+      "name": "Kênh sếp 3",
+      "publish_times": ["06:00", "13:00", "19:00"]
     }
   },
-  "export_schedules": ["schedule_1", "schedule_2", "schedule_3"],
   "per_day": 7,
   "gap_days": 10,
   "gpm_port": 19995,
+  "export_schedules": [
+    "F:\\super-reup-tool\\schedules_1",
+    "E:\\schedule_2",
+    "E:\\schedule_3"
+  ],
   "telegram": {
     "bot_token": "YOUR_BOT_TOKEN_HERE",
     "chat_id": "YOUR_CHAT_ID_HERE"

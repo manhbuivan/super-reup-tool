@@ -332,7 +332,19 @@ def cmd_export_upload(args):
 
         # Collect dates cho profile này
         if args.all:
-            upload_dates = sorted(days_schedule.keys())
+            if args.physical:
+                found_dates = set()
+                profile_dir = os.path.join(schedule_dir, profile_name)
+                if os.path.exists(profile_dir):
+                    for folder in Path(profile_dir).iterdir():
+                        if folder.is_dir():
+                            import re
+                            match = re.search(r'\d{4}-\d{2}-\d{2}', folder.name)
+                            if match:
+                                found_dates.add(match.group(0))
+                upload_dates = sorted(list(found_dates))
+            else:
+                upload_dates = sorted(days_schedule.keys())
         else:
             upload_dates = []
             for i in range(args.days):
@@ -350,10 +362,9 @@ def cmd_export_upload(args):
         gpm_profile_name = gpm_names.get(gpm_id, config_name or profile_name)
 
         for date_str in upload_dates:
-            if date_str not in days_schedule:
+            if date_str not in days_schedule and not args.physical:
                 continue
 
-            videos = days_schedule[date_str]
             profile_dir = os.path.join(schedule_dir, profile_name)
             day_folder = None
             if os.path.exists(profile_dir):
@@ -361,6 +372,17 @@ def cmd_export_upload(args):
                     if folder.is_dir() and date_str in folder.name:
                         day_folder = str(folder)
                         break
+
+            # Scan video files if physical, otherwise use schedule.json
+            if args.physical:
+                video_extensions = ('.mp4', '.mov', '.avi', '.mkv', '.webm', '.flv', '.wmv')
+                if day_folder and os.path.exists(day_folder):
+                    videos = [f.name for f in Path(day_folder).iterdir() if f.is_file() and f.suffix.lower() in video_extensions]
+                    videos.sort()
+                else:
+                    videos = []
+            else:
+                videos = days_schedule.get(date_str, [])
 
             for idx, video_name in enumerate(videos):
                 stem = Path(video_name).stem
@@ -903,6 +925,8 @@ def main():
     p_export.add_argument("--schedule", default="schedules", help="Thư mục schedule (hoặc dùng --all-schedules)")
     p_export.add_argument("--all-schedules", action="store_true",
                           help="Export tất cả schedule_* folders vào 1 file Excel")
+    p_export.add_argument("--physical", action="store_true",
+                          help="Quét trực tiếp file video thực tế có trong thư mục thay vì đọc từ schedule.json")
     p_export.add_argument("--output", default="upload_list.xlsx", help="File Excel output")
     p_export.set_defaults(func=cmd_export_upload)
 
