@@ -29,6 +29,16 @@ class TextMaskConfig:
     bar_opacity: float = 0.6   # Độ mờ dải đen phía dưới (0=không có, 0.6=mờ 60%, 1.0=đen hoàn toàn)
     bar_ratio: float = 0.35    # Chiều cao dải đen = bao nhiêu % frame (0.35 = 35% phía dưới)
 
+    # Slideshow settings (dùng nhiều ảnh nền với hiệu ứng Ken Burns)
+    slideshow_mode: bool = True         # True = dùng nhiều ảnh slideshow, False = dùng 1 video/ảnh cũ
+    slide_duration: float = 8.0         # Mỗi ảnh hiển thị bao nhiêu giây
+    slide_transition: float = 1.5       # Thời gian chuyển cảnh giữa 2 ảnh (giây, fade)
+    slide_zoom_range: tuple = (1.0, 1.2)  # Zoom từ min đến max (1.0 = gốc, 1.2 = zoom 20%)
+    slide_pan_speed: float = 0.03       # Tốc độ pan (% frame/giây) - di chuyển chậm
+    slide_fps: int = 30                 # FPS cho slideshow output
+    slide_random_order: bool = True     # Xáo trộn thứ tự ảnh
+    slide_blur_strength: int = 40       # Độ mờ nền blur phía sau ảnh (sigma, cao = mờ hơn)
+
     # Options
     limit: int = None
     resolution: int = None

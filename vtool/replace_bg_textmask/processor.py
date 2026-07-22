@@ -29,6 +29,7 @@ from vtool.core.ffmpeg import (
     get_video_dimensions, list_media_files
 )
 from vtool.replace_bg_textmask.config import TextMaskConfig
+from vtool.replace_bg_textmask.slideshow import generate_slideshow_video
 
 
 def _build_textmask_filter(width: int, height: int, config: TextMaskConfig) -> str:
@@ -107,6 +108,10 @@ def _build_textmask_filter(width: int, height: int, config: TextMaskConfig) -> s
 def process_single_textmask(args: tuple) -> dict:
     """
     Xử lý 1 video: detect text trắng, thay background.
+    
+    args format:
+    - (video_path, background_path, output_path, config) — mode cũ (1 file BG)
+    - (video_path, background_images_list, output_path, config) — slideshow mode (list ảnh)
     """
     video_path, background_path, output_path, config = args
 
@@ -118,13 +123,28 @@ def process_single_textmask(args: tuple) -> dict:
         "error": None,
     }
 
+    slideshow_temp = None  # Track temp file để cleanup
+
     try:
         # Lấy thông tin video gốc
         width, height, duration, fps = get_video_dimensions(video_path)
 
-        # Xác định background type
-        bg_ext = Path(background_path).suffix.lower()
-        is_video_bg = bg_ext in VIDEO_EXTENSIONS
+        # Slideshow mode: background_path là list ảnh → tạo video slideshow tạm
+        if isinstance(background_path, list):
+            slideshow_temp = generate_slideshow_video(
+                images=background_path,
+                output_path=None,  # auto temp
+                width=width,
+                height=height,
+                total_duration=duration,
+                config=config,
+            )
+            background_path = slideshow_temp
+            is_video_bg = True  # slideshow output là video
+        else:
+            # Xác định background type
+            bg_ext = Path(background_path).suffix.lower()
+            is_video_bg = bg_ext in VIDEO_EXTENSIONS
 
         # Chọn codec
         hw_decode = []
@@ -203,6 +223,13 @@ def process_single_textmask(args: tuple) -> dict:
     except Exception as e:
         result["status"] = "error"
         result["error"] = str(e)
+    finally:
+        # Cleanup slideshow temp video
+        if slideshow_temp and os.path.exists(slideshow_temp):
+            try:
+                os.remove(slideshow_temp)
+            except Exception:
+                pass
 
     result["time"] = round(time.time() - start_time, 1)
     return result
@@ -230,12 +257,30 @@ def batch_process_textmask(config: TextMaskConfig):
         print(f"❌ Không tìm thấy background nào trong '{config.background_dir}/'")
         sys.exit(1)
 
+    # Kiểm tra slideshow mode
+    use_slideshow = False
+    bg_images = []
+    if config.slideshow_mode:
+        bg_images = list_media_files(config.background_dir, IMAGE_EXTENSIONS)
+        if len(bg_images) >= 2:
+            use_slideshow = True
+        else:
+            print(f"⚠️  Slideshow mode bật nhưng chỉ có {len(bg_images)} ảnh. Cần ít nhất 2 ảnh.")
+            print(f"    → Dùng mode background đơn.")
+
     # Header
     print("=" * 60)
     print("🔤 REPLACE BACKGROUND (TEXT MASK)")
     print("=" * 60)
     print(f"📂 Input videos:  {len(input_videos)} files")
     print(f"🖼️  Backgrounds:   {len(backgrounds)} files")
+    if use_slideshow:
+        print(f"🎬 Mode:          SLIDESHOW ({len(bg_images)} ảnh, {config.slide_duration}s/ảnh)")
+        print(f"   Transition:    {config.slide_transition}s fade")
+        print(f"   Zoom range:    {config.slide_zoom_range[0]}x → {config.slide_zoom_range[1]}x")
+        print(f"   Pan speed:     {config.slide_pan_speed}")
+    else:
+        print(f"🎬 Mode:          SINGLE BACKGROUND")
     print(f"⚙️  Workers:       {config.max_workers} parallel")
     print(f"🔍 Threshold:     {config.threshold} (brightness)")
     print(f"🌫️  Softness:      min_bright={config.min_brightness}")
@@ -254,7 +299,6 @@ def batch_process_textmask(config: TextMaskConfig):
     tasks = []
     skipped = 0
     for video_path in input_videos:
-        bg = random.choice(backgrounds)
         stem = Path(video_path).stem
         output_name = f"{stem}.{config.output_format}"
         output_path = os.path.join(config.output_dir, output_name)
@@ -263,6 +307,12 @@ def batch_process_textmask(config: TextMaskConfig):
         if os.path.exists(output_path):
             skipped += 1
             continue
+
+        # Chọn background: slideshow mode → pass list ảnh, mode cũ → 1 file random
+        if use_slideshow:
+            bg = bg_images  # Pass toàn bộ list ảnh
+        else:
+            bg = random.choice(backgrounds)
 
         tasks.append((video_path, bg, output_path, config))
 
